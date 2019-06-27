@@ -9,3 +9,5 @@ tools/*
 projects/04/**/*.hack
 projects/05/**/*.hack
 projects/05/**/*.asm
+
+projects/06/**/*.asm
