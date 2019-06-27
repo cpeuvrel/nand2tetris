@@ -1,0 +1,11 @@
+*.cmp
+*.out
+*.tst
+*.png
+*.zip
+
+tools/*
+
+projects/04/**/*.hack
+projects/05/**/*.hack
+projects/05/**/*.asm
