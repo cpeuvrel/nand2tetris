@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 
 import sys
+import re
+
+## TODO: optimize all `@SP` when `A` already == `SP`
 
 #### RAM Usage
 ## 0-15: 16 virtual registers
@@ -46,6 +49,8 @@ class VMEmulator:
     }
 
     asm = []
+    filename = ''
+    lineno = 0
 
 
     def encode_push(self, segment, index):
@@ -63,7 +68,7 @@ class VMEmulator:
             # // D = R[<segment + index = addr>] = <data>
             # @<addr> // A=<addr> / D=? / M=<data>
             # D=M     // A=<addr> / D=<data> / M=<data>
-            address = self.memory_segment[segment]['start'] + index
+            address = self.memory_segment[segment]['start'] + int(index)
             self.asm.append('@{}'.format(address)) # A = <addr>
             self.asm.append('D=M') # D = <data>
 
@@ -81,6 +86,11 @@ class VMEmulator:
     def encode_pop(self, segment, index):
         self.decr_sp()
 
+        if segment == 'static':
+            # TODO
+            print('does not support PUSH static yet')
+            sys.exit(1)
+
         # // D = R[R[SP]]
         # @SP     // A=SP / D=?  / M=R[SP]
         # A=M     // A=R[SP] / D=? / M=R[R[SP]]=<data>
@@ -92,9 +102,31 @@ class VMEmulator:
         # // R[<addr>] = D
         # @<addr> // A=<addr> / D=<data> / M=?
         # D=M     // A=<addr> / D=<data> / M=<data>
-        address = self.memory_segment[segment]['start'] + index
+        address = self.memory_segment[segment]['start'] + int(index)
         self.asm.append('@{}'.format(address)) # A = <addr>
+        self.asm.append('A=M') # M = <data>
         self.asm.append('M=D') # M = <data>
+
+    def prepare_logic_arithmetic_unary(self):
+        # A,D,M registers unknown. Starting Stack :
+        # a
+        # b
+        # c
+        #    <- SP
+
+        # This function will put `c` in `M` register and decrement SP
+        # D=?, M=c, A=SP
+        # Final Stack :
+        # a
+        # b
+        # c  <- SP
+
+        self.decr_sp()
+
+        # // D = R[R[SP]] = <arg1>
+        self.asm.append('@SP') # A = SP
+        self.asm.append('A=M') # M= R[R[SP]] (=<arg1>)
+
 
     def prepare_logic_arithmetic_binary(self):
         # A,D,M registers unknown. Starting Stack :
@@ -110,13 +142,8 @@ class VMEmulator:
         # b  <- SP
         # c
 
-        self.decr_sp()
-
-        # // D = R[R[SP]] = <arg1>
-        self.asm.append('@SP') # A = SP
-        self.asm.append('A=M') # M= R[R[SP]] (=<arg1>)
+        self.prepare_logic_arithmetic_unary()
         self.asm.append('D=M') # D= R[R[SP]] 
-
         self.decr_sp()
 
         # // M = R[R[SP]](=<arg2>)
@@ -124,11 +151,89 @@ class VMEmulator:
         self.asm.append('A=M') # M= R[R[SP]] (=<arg2>)
 
 
+    def normalize_filepath(self, path):
+        return re.sub('[^A-Za-z0-9]', '_', path)
+
+    def compare(self, test_op):
+        ## Set R[R[SP]] = 0/-1 depending on the test success
+        label_base = '{}_{}'.format(self.normalize_filepath(self.filename), self.lineno)
+
+        ## Set D=-1 if test is true, else D=0
+        self.asm.append('@{}_true'.format(label_base))
+        self.asm.append('D;{}'.format(test_op))
+        self.asm.append('@{}_false'.format(label_base))
+        self.asm.append('0;JMP')
+
+        self.asm.append('({}_true)'.format(label_base))
+        self.asm.append('D=-1')
+
+        self.asm.append('@{}_end'.format(label_base))
+        self.asm.append('0;JMP')
+
+        self.asm.append('({}_false)'.format(label_base))
+        self.asm.append('D=0')
+
+        self.asm.append('({}_end)'.format(label_base))
+
+        ## Set R[R[SP]] = D
+        self.asm.append('@SP')
+        self.asm.append('A=M')
+        self.asm.append('M=D')
+
+
     def encode_add(self):
         self.prepare_logic_arithmetic_binary()
-
-        # // M = D+M
         self.asm.append('M=D+M') # D= <arg1> + <arg2>
+        self.incr_sp()
+
+    def encode_sub(self):
+        self.prepare_logic_arithmetic_binary()
+        self.asm.append('M=M-D') # D= <arg2> - <arg1>
+        self.incr_sp()
+
+
+    def encode_and(self):
+        self.prepare_logic_arithmetic_binary()
+        self.asm.append('M=D&M') # D= <arg1> & <arg2>
+        self.incr_sp()
+
+
+    def encode_or(self):
+        self.prepare_logic_arithmetic_binary()
+        self.asm.append('M=D|M') # D= <arg1> | <arg2>
+        self.incr_sp()
+
+
+    def encode_neg(self):
+        self.prepare_logic_arithmetic_unary()
+        self.asm.append('M=-M') # D= - <arg1>
+        self.incr_sp()
+
+
+    def encode_not(self):
+        self.prepare_logic_arithmetic_unary()
+        self.asm.append('M=!M') # D= - <arg1>
+        self.incr_sp()
+
+
+    def encode_eq(self):
+        self.prepare_logic_arithmetic_binary()
+        self.asm.append('D=M-D') # D= <arg1> - <arg2>
+        self.compare('JEQ')
+        self.incr_sp()
+
+
+    def encode_lt(self):
+        self.prepare_logic_arithmetic_binary()
+        self.asm.append('D=M-D') # D= <arg1> - <arg2>
+        self.compare('JLT')
+        self.incr_sp()
+
+
+    def encode_gt(self):
+        self.prepare_logic_arithmetic_binary()
+        self.asm.append('D=M-D') # D= <arg1> - <arg2>
+        self.compare('JGT')
         self.incr_sp()
 
 
@@ -145,6 +250,8 @@ class VMEmulator:
         self.asm.append('M=M+1') # R[SP]--
 
     def main(self, file, outfile=None):
+        self.filename = file
+        self.lineno = 0
         with open(file, "r") as f:
             raw = f.readlines()
 
@@ -157,6 +264,9 @@ class VMEmulator:
                 content.append(clean_line)
 
         for line in content:
+            self.lineno += 1
+
+            self.asm.append('// {}'.format(line))
             line_parsed = line.split(" ")
             command = line_parsed[0]
             arg1 = None if len(line_parsed) < 2 else line_parsed[1]
@@ -168,9 +278,27 @@ class VMEmulator:
                 self.encode_pop(arg1, arg2)
             elif command == "add":
                 self.encode_add()
+            elif command == "sub":
+                self.encode_sub()
+            elif command == "and":
+                self.encode_and()
+            elif command == "or":
+                self.encode_or()
+            elif command == "neg":
+                self.encode_neg()
+            elif command == "not":
+                self.encode_not()
+            elif command == "eq":
+                self.encode_eq()
+            elif command == "gt":
+                self.encode_gt()
+            elif command == "lt":
+                self.encode_lt()
+            else:
+                print("Unknown command: {}".format(command))
 
         if not outfile:
-            outfile = "{}.self.asm".format(file.split(".vm", 1)[0])
+            outfile = "{}.asm".format(file.split(".vm", 1)[0])
 
         with open(outfile, "w") as f:
             print("Write result in {}".format(outfile))
