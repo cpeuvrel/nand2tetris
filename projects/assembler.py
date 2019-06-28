@@ -146,7 +146,7 @@ def main(file, outfile=None):
     for line in raw:
         without_comment = line.split("//", maxsplit=1)[0]
         without_space = without_comment.replace(" ", "")
-        clean_line = without_comment.strip()
+        clean_line = without_space.strip()
         if clean_line != "":
             if clean_line[0] == "(" and clean_line[-1] == ")":
                 add_symbol(name=clean_line[1:-1], value=pos)
