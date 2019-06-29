@@ -41,6 +41,17 @@ class VMEmulator:
         self.asm.append("@SP")  # A=SP
         self.asm.append("M=M+1")  # R[SP]--
 
+    def pop_stack_in_d(self):
+        self.decr_sp()
+
+        # // D = R[R[SP]]
+        # @SP     // A=SP / D=?  / M=R[SP]
+        # A=M     // A=R[SP] / D=? / M=R[R[SP]]=<data>
+        # D=M     // A=R[SP] / D=<data> / M=R[R[SP]]
+        self.asm.append("@SP")  # A = SP
+        self.asm.append("A=M")  # M= R[R[SP]] (= <data>)
+        self.asm.append("D=M")  # D= R[R[SP]]
+
     def encode_push(self, segment, index):
         if segment == "constant":
             # // D = <cst>
@@ -79,8 +90,6 @@ class VMEmulator:
 
     def encode_pop(self, segment, index):
         # Use R13 as temporary register for storing the dst address
-        self.decr_sp()
-
         if segment == "static":
             self.asm.append("@{}_{}".format(self.filename, index))  # A = <cst>
             self.asm.append("D=M")  # D = <cst>
@@ -97,13 +106,7 @@ class VMEmulator:
         self.asm.append("@13")
         self.asm.append("M=D")
 
-        # // D = R[R[SP]]
-        # @SP     // A=SP / D=?  / M=R[SP]
-        # A=M     // A=R[SP] / D=? / M=R[R[SP]]=<data>
-        # D=M     // A=R[SP] / D=<data> / M=R[R[SP]]
-        self.asm.append("@SP")  # A = SP
-        self.asm.append("A=M")  # M= R[R[SP]] (= <data>)
-        self.asm.append("D=M")  # D= R[R[SP]]
+        self.pop_stack_in_d()
 
         # // R[<addr>] = D
         # @<addr> // A=<addr> / D=<data> / M=?
@@ -231,6 +234,21 @@ class VMEmulator:
         self.compare("JLT")
         self.incr_sp()
 
+    def encode_label(self, label):
+        # FIXME: limit label's scope to function
+        self.asm.append("({})".format(label))
+
+    def encode_goto(self, label):
+        # FIXME: limit label's scope to function
+        self.asm.append("@{}".format(label))
+        self.asm.append("0;JMP")
+
+    def encode_ifgoto(self, label):
+        # FIXME: limit label's scope to function
+        self.pop_stack_in_d()
+        self.asm.append("@{}".format(label))
+        self.asm.append("D;JNE")
+
     def main(self, file, outfile=None):
         self.filename = file
         self.lineno = 0
@@ -276,6 +294,12 @@ class VMEmulator:
                 self.encode_gt()
             elif command == "lt":
                 self.encode_lt()
+            elif command == "label":
+                self.encode_label(arg1)
+            elif command == "goto":
+                self.encode_goto(arg1)
+            elif command == "if-goto":
+                self.encode_ifgoto(arg1)
             else:
                 print("Unknown command: {}".format(command))
 
