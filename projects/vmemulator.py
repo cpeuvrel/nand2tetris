@@ -61,15 +61,22 @@ class VMEmulator:
             self.asm.append('@{}'.format(index)) # A = <cst>
             self.asm.append('D=A') # D = <cst>
         elif segment == 'static':
-            # TODO
-            print('does not support PUSH static yet')
-            sys.exit(1)
+            self.asm.append('@{}_{}'.format(self.filename, index)) # A = <cst>
+            self.asm.append('D=M') # D = <cst>
         else:
+            # // R[13] = <base addr> + <index>
+            address = self.memory_segment[segment]['start']
+            self.asm.append('@{}'.format(address)) # A = <base addr>
+            #if segment != 'temp':
+            if segment != 'temp' and segment != 'pointer':
+                self.asm.append('A=M')
+            self.asm.append('D=A')
+            self.asm.append('@{}'.format(index)) # A = <base addr>
+            self.asm.append('A=D+A')
+
             # // D = R[<segment + index = addr>] = <data>
             # @<addr> // A=<addr> / D=? / M=<data>
             # D=M     // A=<addr> / D=<data> / M=<data>
-            address = self.memory_segment[segment]['start'] + int(index)
-            self.asm.append('@{}'.format(address)) # A = <addr>
             self.asm.append('D=M') # D = <data>
 
         # // R[R[SP]] = D
@@ -84,12 +91,24 @@ class VMEmulator:
 
 
     def encode_pop(self, segment, index):
+        # Use R13 as temporary register for storing the dst address
         self.decr_sp()
 
         if segment == 'static':
-            # TODO
-            print('does not support PUSH static yet')
-            sys.exit(1)
+            self.asm.append('@{}_{}'.format(self.filename, index)) # A = <cst>
+            self.asm.append('D=M') # D = <cst>
+        else:
+            # // R[13] = <base addr> + <index>
+            address = self.memory_segment[segment]['start']
+            self.asm.append('@{}'.format(address)) # A = <base addr>
+            if segment != 'temp' and segment != 'pointer':
+                self.asm.append('A=M')
+            self.asm.append('D=A')
+            self.asm.append('@{}'.format(index)) # A = <index>
+            self.asm.append('D=D+A')
+
+        self.asm.append('@13')
+        self.asm.append('M=D')
 
         # // D = R[R[SP]]
         # @SP     // A=SP / D=?  / M=R[SP]
@@ -102,9 +121,8 @@ class VMEmulator:
         # // R[<addr>] = D
         # @<addr> // A=<addr> / D=<data> / M=?
         # D=M     // A=<addr> / D=<data> / M=<data>
-        address = self.memory_segment[segment]['start'] + int(index)
-        self.asm.append('@{}'.format(address)) # A = <addr>
-        self.asm.append('A=M') # M = <data>
+        self.asm.append('@13')
+        self.asm.append('A=M')
         self.asm.append('M=D') # M = <data>
 
     def prepare_logic_arithmetic_unary(self):
