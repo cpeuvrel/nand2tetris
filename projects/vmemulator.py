@@ -2,6 +2,7 @@
 
 import sys
 import re
+import os
 
 ## TODO: optimize all `@SP` when `A` already == `SP`
 
@@ -307,7 +308,7 @@ class VMEmulator:
         self.asm.append("0;JMP")
         self.function_stack.pop()
 
-    def main(self, file, outfile=None):
+    def parse_file(self, file):
         self.filename = file
         self.lineno = 0
         with open(file, "r") as f:
@@ -365,18 +366,28 @@ class VMEmulator:
             else:
                 print("Unknown command: {}".format(command))
 
-        if not outfile:
-            outfile = "{}.asm".format(file.split(".vm", 1)[0])
+    def main(self, file, outfile=None):
+        if os.path.isdir(file):
+            for dir_file in os.listdir(file):
+                abs_path = '{}/{}'.format(file, dir_file)
+                if os.path.isfile(abs_path) and dir_file.endswith('.vm'):
+                    print("Parse {}".format(abs_path))
+                    self.parse_file(abs_path)
+
+            if not outfile:
+                outfile = "{}/{}.asm".format(file, os.path.basename(file))
+        else:
+            self.parse_file(file)
+            if not outfile:
+                outfile = "{}.asm".format(file.split(".vm", 1)[0])
 
         with open(outfile, "w") as f:
             print("Write result in {}".format(outfile))
             f.writelines(["{}\n".format(line) for line in self.asm])
 
-
 if __name__ == "__main__":
-    # TODO: handle give a directory with several vm
     if len(sys.argv) != 2:
-        print("Must give a vm file as arg")
+        print("Must give a vm file path or a directory containing vm files as arg")
         sys.exit(1)
 
     VMEmulator().main(file=sys.argv[1])
