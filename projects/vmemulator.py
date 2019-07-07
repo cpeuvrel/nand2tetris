@@ -109,7 +109,7 @@ class VMEmulator:
         # Use R15 as temporary register for storing the dst address
         if segment == "static":
             self.asm.append("@{}_{}".format(self.filename, index))  # A = <cst>
-            self.asm.append("D=M")  # D = <cst>
+            self.asm.append("D=A")  # D = <cst>
         else:
             # // R[15] = <base addr> + <index>
             address = self.memory_segment[segment]["start"]
@@ -358,8 +358,7 @@ class VMEmulator:
         self.asm.append("0;JMP")
 
     def file_to_array(self, file):
-        self.filename = file
-        self.lineno = 0
+        self.filename = file.split('/')[-1]
         with open(file, "r") as f:
             raw = f.readlines()
 
@@ -389,7 +388,6 @@ class VMEmulator:
     def parse_file(self, file):
         content = self.file_to_array(file)
 
-        self.filename = file
         self.lineno = 0
 
         for line in content:
