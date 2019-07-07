@@ -28,6 +28,7 @@ class VMEmulator:
 
     asm = []
     filename = ""
+    filename_with_init = ""
     lineno = 0
 
     current_function = "Sys.init"
@@ -356,7 +357,7 @@ class VMEmulator:
         self.asm.append("A=D")
         self.asm.append("0;JMP")
 
-    def parse_file(self, file):
+    def file_to_array(self, file):
         self.filename = file
         self.lineno = 0
         with open(file, "r") as f:
@@ -369,6 +370,27 @@ class VMEmulator:
             clean_line = without_comment.strip()
             if clean_line != "":
                 content.append(clean_line)
+
+        return content
+
+
+    def pre_parse_file(self, file):
+        content = self.file_to_array(file)
+
+        for line in content:
+            line_parsed = line.split(" ")
+            command = line_parsed[0]
+
+            if command == "function" and line_parsed[1] == "Sys.init":
+                self.filename_with_init = file
+            if command == "call":
+                self.args_count_by_function[line_parsed[1]] = int(line_parsed[2])
+
+    def parse_file(self, file):
+        content = self.file_to_array(file)
+
+        self.filename = file
+        self.lineno = 0
 
         for line in content:
             self.lineno += 1
@@ -424,6 +446,18 @@ class VMEmulator:
 
             for dir_file in os.listdir(file):
                 abs_path = '{}/{}'.format(file, dir_file)
+                if os.path.isfile(abs_path) and dir_file.endswith('.vm'):
+                    self.pre_parse_file(abs_path)
+
+            if self.filename_with_init:
+                print("Parse {}".format(self.filename_with_init))
+                self.parse_file(self.filename_with_init)
+
+            for dir_file in os.listdir(file):
+                abs_path = '{}/{}'.format(file, dir_file)
+                if abs_path == self.filename_with_init:
+                    continue
+
                 if os.path.isfile(abs_path) and dir_file.endswith('.vm'):
                     print("Parse {}".format(abs_path))
                     self.parse_file(abs_path)
