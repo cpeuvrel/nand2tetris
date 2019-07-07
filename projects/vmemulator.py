@@ -30,11 +30,9 @@ class VMEmulator:
     filename = ""
     lineno = 0
 
-    function_stack = ["Sys.init"]
-    local_var_count_by_function = {}
-
-    def current_function(self):
-        return self.function_stack[-1]
+    current_function = "Sys.init"
+    args_count_by_function = {}
+    return_pos = {}
 
     def decr_sp(self):
         # Decrement SP register
@@ -47,6 +45,17 @@ class VMEmulator:
         # Does not touch `D` register
         self.asm.append("@SP")  # A=SP
         self.asm.append("M=M+1")  # R[SP]--
+
+    def push_d_in_stack(self):
+        self.asm.append("@SP")
+        self.asm.append("A=M")
+        self.asm.append("M=D")
+        self.incr_sp()
+
+    def push_register_in_stack(self, register_name):
+        self.asm.append("@{}".format(register_name))
+        self.asm.append("D=M")
+        self.push_d_in_stack()
 
     def pop_stack_in_d(self):
         self.decr_sp()
@@ -96,12 +105,12 @@ class VMEmulator:
         self.incr_sp()
 
     def encode_pop(self, segment, index):
-        # Use R5 as temporary register for storing the dst address
+        # Use R15 as temporary register for storing the dst address
         if segment == "static":
             self.asm.append("@{}_{}".format(self.filename, index))  # A = <cst>
             self.asm.append("D=M")  # D = <cst>
         else:
-            # // R[5] = <base addr> + <index>
+            # // R[15] = <base addr> + <index>
             address = self.memory_segment[segment]["start"]
             self.asm.append("@{}".format(address))  # A = <base addr>
             if segment != "temp" and segment != "pointer":
@@ -110,7 +119,7 @@ class VMEmulator:
             self.asm.append("@{}".format(index))  # A = <index>
             self.asm.append("D=D+A")
 
-        self.asm.append("@5")
+        self.asm.append("@15")
         self.asm.append("M=D")
 
         self.pop_stack_in_d()
@@ -118,7 +127,7 @@ class VMEmulator:
         # // R[<addr>] = D
         # @<addr> // A=<addr> / D=<data> / M=?
         # D=M     // A=<addr> / D=<data> / M=<data>
-        self.asm.append("@5")
+        self.asm.append("@15")
         self.asm.append("A=M")
         self.asm.append("M=D")  # M = <data>
 
@@ -242,27 +251,62 @@ class VMEmulator:
         self.incr_sp()
 
     def encode_label(self, label):
-        self.asm.append("({}:{})".format(self.current_function(), label))
+        self.asm.append("({}:{})".format(self.current_function, label))
 
     def encode_goto(self, label):
-        self.asm.append("@{}:{}".format(self.current_function(), label))
+        self.asm.append("@{}:{}".format(self.current_function, label))
         self.asm.append("0;JMP")
 
     def encode_ifgoto(self, label):
         self.pop_stack_in_d()
-        self.asm.append("@{}:{}".format(self.current_function(), label))
+        self.asm.append("@{}:{}".format(self.current_function, label))
         self.asm.append("D;JNE")
 
     def encode_call(self, function_name, arg_count):
         # Save return address and the segment pointers
         # Set local and argument segments
         # Transfer control to called function
+
+        self.args_count_by_function[function_name] = int(arg_count)
+
+        self.return_pos[function_name] = 0 if function_name not in self.return_pos else self.return_pos[function_name] + 1
+        return_tag = "{}_return_{}".format(function_name, self.return_pos[function_name])
+
+        # push return address
+        self.asm.append("@{}".format(return_tag))
+        self.asm.append("D=A")
+        self.push_d_in_stack()
+        # push registers in stack
+        self.push_register_in_stack("LCL")
+        self.push_register_in_stack("ARG")
+        self.push_register_in_stack("THIS")
+        self.push_register_in_stack("THAT")
+
+        # ARG = SP - (arg_count + 5)
+        self.asm.append("@{}".format(int(arg_count) + 5))
+        self.asm.append("D=A")
+        self.asm.append("@SP")
+        self.asm.append("D=M-D")
+        self.asm.append("@ARG")
+        self.asm.append("M=D")
+
+        # LCL = SP
+        self.asm.append("@SP")
+        self.asm.append("D=M")
+        self.asm.append("@LCL")
+        self.asm.append("M=D")
+
+        # GOTO function
+        self.asm.append("@{}".format(function_name))
+        self.asm.append("0;JMP")
+
+        self.asm.append("({})".format(return_tag))
+
         pass
 
     def encode_function(self, function_name, local_var_count):
         self.asm.append("({})".format(function_name))
-        self.function_stack.append(function_name)
-        self.local_var_count_by_function[function_name] = local_var_count
+        self.current_function = function_name
 
         for i in range(int(local_var_count)):
             # Allocate and init 0 all local variables
@@ -272,9 +316,9 @@ class VMEmulator:
             self.incr_sp()
 
     def encode_return(self):
-        # Keep last value in stack in D (temporarly stored in R[6] == temp 1)
+        # Keep last value in stack in D (temporarly stored in R[14] == temp 9)
         self.pop_stack_in_d()
-        self.asm.append("@6")
+        self.asm.append("@14")
         self.asm.append("M=D")
 
         # Clear arg&garbage from the stack
@@ -296,17 +340,21 @@ class VMEmulator:
 
         # Store retrun address
         self.pop_stack_in_d()
+        self.asm.append("@15")
+        self.asm.append("M=D")
+
         self.asm.append("@SP")
-        for arg in range(int(self.local_var_count_by_function[self.current_function()])):
+        for _ in range(self.args_count_by_function[self.current_function]):
             self.asm.append("M=M-1")
 
         # Push back to the stack the stored value
-        self.encode_push('temp', 1)
+        self.encode_push('temp', 9)
 
         # Jump to retrun address
+        self.asm.append("@15")
+        self.asm.append("D=M")
         self.asm.append("A=D")
         self.asm.append("0;JMP")
-        self.function_stack.pop()
 
     def parse_file(self, file):
         self.filename = file
@@ -361,6 +409,8 @@ class VMEmulator:
                 self.encode_ifgoto(arg1)
             elif command == "function":
                 self.encode_function(arg1, arg2)
+            elif command == "call":
+                self.encode_call(arg1, arg2)
             elif command == "return":
                  self.encode_return()
             else:
@@ -368,6 +418,10 @@ class VMEmulator:
 
     def main(self, file, outfile=None):
         if os.path.isdir(file):
+            # Remove trailing slash
+            if file.endswith("/"):
+                file = file[:-1]
+
             for dir_file in os.listdir(file):
                 abs_path = '{}/{}'.format(file, dir_file)
                 if os.path.isfile(abs_path) and dir_file.endswith('.vm'):
