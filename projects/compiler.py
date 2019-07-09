@@ -13,51 +13,54 @@ class Compiler:
     tokens = []
     tokens_xml = []
 
+    ast = []
+    parsed_xml = []
+
     keyword_list = [
-            "class",
-            "constructor",
-            "function",
-            "method",
-            "field",
-            "static",
-            "var",
-            "int",
-            "char",
-            "boolean",
-            "void",
-            "true",
-            "false",
-            "null",
-            "this",
-            "let",
-            "do",
-            "if",
-            "else",
-            "while",
-            "return",
-        ]
+        "class",
+        "constructor",
+        "function",
+        "method",
+        "field",
+        "static",
+        "var",
+        "int",
+        "char",
+        "boolean",
+        "void",
+        "true",
+        "false",
+        "null",
+        "this",
+        "let",
+        "do",
+        "if",
+        "else",
+        "while",
+        "return",
+    ]
 
     symbol_list = [
-            "{",
-            "}",
-            "(",
-            ")",
-            "[",
-            "]",
-            ".",
-            ",",
-            ";",
-            "+",
-            "-",
-            "*",
-            "/",
-            "&",
-            "|",
-            "<",
-            ">",
-            "=",
-            "~",
-            ]
+        "{",
+        "}",
+        "(",
+        ")",
+        "[",
+        "]",
+        ".",
+        ",",
+        ";",
+        "+",
+        "-",
+        "*",
+        "/",
+        "&",
+        "|",
+        "<",
+        ">",
+        "=",
+        "~",
+    ]
 
     def get_token_type(self, word):
         pattern_number = "^[0-9]+$"
@@ -121,7 +124,6 @@ class Compiler:
             quote_position = word.find('"')
 
             if not in_string and quote_position != -1:
-                # FIXME
                 self.tokens += self.tokenize_word(word[:quote_position])
 
                 word = word[quote_position+1:]
@@ -150,7 +152,46 @@ class Compiler:
             self.tokens_xml.append("<{}> {} </{}>".format(token["type"], escape(token["value"]), token["type"]))
         self.tokens_xml.append("</tokens>")
 
-    def main(self, file, outfile=None):
+    def parse_file(self):
+        for i in range(len(self.tokens)):
+            token = self.tokens[i]
+
+            if token["type"] == "keyword":
+                if token["value"] == "class":
+                    self.ast.append(token)
+
+                    # class identifier
+                    i += 1
+                    token = self.tokens[i]
+                    if token["type"] != "identifier":
+                        print("Wrong token type after 'class', should be 'identifier' and got {}".format(token),
+                              file=sys.stderr)
+                        break
+                    self.ast.append(token)
+
+                    # open bracket
+
+
+
+            if token["type"] == "symbol" and token["value"] in ("{", "[", "("):
+                pass
+            pass
+
+    def compile_file(self, file):
+        self.tokenize_file(file)
+        self.parse_file()
+        outfile_token = "{}T.xml".format(file.split(".jack", 1)[0])
+        outfile_parsed = "{}.xml".format(file.split(".jack", 1)[0])
+
+        with open(outfile_token, "w") as f:
+            print("Write tokens result in {}".format(outfile_token))
+            f.writelines(["{}\n".format(line) for line in self.tokens_xml])
+
+        with open(outfile_token, "w") as f:
+            print("Write parsed result in {}".format(outfile_parsed))
+            # f.writelines(["{}\n".format(line) for line in self.parsed_xml])
+
+    def main(self, file):
         if os.path.isdir(file):
             # Remove trailing slash
             if file.endswith("/"):
@@ -160,25 +201,9 @@ class Compiler:
                 abs_path = '{}/{}'.format(file, dir_file)
                 if os.path.isfile(abs_path) and dir_file.endswith('.jack'):
                     print("Parse {}".format(abs_path))
-                    self.tokenize_file(abs_path)
-
-            if not outfile:
-                outfile_token = "{}/{}T.xml".format(file, os.path.basename(file))
-                outfile = "{}/{}.vm".format(file, os.path.basename(file))
+                    self.compile_file(abs_path)
         else:
-            self.tokenize_file(file)
-            if not outfile:
-                outfile_token = "{}T.xml".format(file.split(".jack", 1)[0])
-                outfile = "{}.vm".format(file.split(".jack", 1)[0])
-
-        #pprint(self.tokens_xml)
-        with open(outfile_token, "w") as f:
-            print("Write tokens result in {}".format(outfile_token))
-            f.writelines(["{}\n".format(line) for line in self.tokens_xml])
-
-        #with open(outfile, "w") as f:
-        #    print("Write result in {}".format(outfile))
-        #    f.writelines(["{}\n".format(line) for line in self.vm])
+            self.compile_file(file)
 
 
 if __name__ == "__main__":
