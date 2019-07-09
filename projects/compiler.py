@@ -62,6 +62,283 @@ class Compiler:
         "~",
     ]
 
+    jack_syntax = {
+        # #######################
+        # ## Program structure ##
+        # #######################
+
+        # class: 'class' className '{' classVarDec* subroutineDec* '}' 
+        "class": [
+            {"type": "keyword", "value": "class"},
+            {"type": "identifier"},
+            {"type": "symbol", "value": "{"},
+            {"custom_type": "classVarDec", "count": "*"},
+            {"custom_type": "subroutineDec", "count": "*"},
+            {"type": "symbol", "value": "}"},
+        ],
+        # classVarDec: ('static' | 'field' ) type varName (',' varName)* ';' 
+        "classVarDec": [
+            {"or": [
+                {"type": "keyword", "value": "static"},
+                {"type": "keyword", "value": "field"},
+            ]},
+            {"custom_type": "type"},
+            {"custom_type": "varName"},
+            {"group": [
+                {"type": "symbol", "value": ","},
+                {"custom_type": "varName"},
+            ], "count": "*"},
+            {"type": "symbol", "value": ";"},
+        ],
+        # type: 'int' | 'char' | 'boolean' | className 
+        "type": [
+            {"or": [
+                {"type": "keyword", "value": "int"},
+                {"type": "keyword", "value": "char"},
+                {"type": "keyword", "value": "boolean"},
+                {"custom_type": "className"},
+            ]},
+        ],
+        # subroutineDec: ('constructor' | 'function' | 'method') ('void' | type) subroutineName
+        #                '(' parameterList ')' subroutineBody
+        "subroutineDec": [
+            {"or": [
+                {"type": "keyword", "value": "constructor"},
+                {"type": "keyword", "value": "function"},
+                {"type": "keyword", "value": "method"},
+            ]},
+            {"or": [
+                {"type": "keyword", "value": "void"},
+                {"custom_type": "type"},
+            ]},
+            {"custom_type": "subroutineName"},
+            {"type": "symbol", "value": "("},
+            {"custom_type": "parameterList"},
+            {"type": "symbol", "value": ")"},
+            {"custom_type": "subroutineBody"},
+        ],
+        # parameterList: ( (type varName) (',' type varName)*)?
+        "parameterList": [
+            {"group": [
+                {"group": [
+                    {"custom_type": "type"},
+                    {"custom_type": "varName"},
+                ]},
+                {"group": [
+                    {"type": "symbol", "value": ","},
+                    {"custom_type": "type"},
+                    {"custom_type": "varName"},
+                ], "count": "*"}
+
+            ], "count": "?"}
+        ],
+        # subroutineBody: '{' varDec* statements '}'
+        "subroutineBody": [
+            {"type": "symbol", "value": "{"},
+            {"custom_type": "varDec", "count": "*"},
+            {"custom_type": "statements"},
+            {"type": "symbol", "value": "}"},
+        ],
+        # varDec: 'var' type varName (',' varName)* ';'
+        "varDec": [
+            {"type": "keyword", "value": "var"},
+            {"custom_type": "type"},
+            {"custom_type": "varName"},
+            {"group": [
+                {"type": "symbol", "value": ","},
+                {"custom_type": "varName"},
+            ], "count": "*"},
+            {"type": "symbol", "value": ";"},
+        ],
+        # className: Identifier
+        "className": [
+            {"type": "identifier"},
+        ],
+        # subroutineName: Identifier
+        "subroutineName": [
+            {"type": "identifier"},
+        ],
+        # varName: Identifier
+        "varName": [
+            {"type": "identifier"},
+        ],
+
+        # ################
+        # ## Statements ##
+        # ################
+
+        # statements: statement*
+        "statements": [
+            {"custom_type": "statement", "count": "*"},
+        ],
+        # statement: letStatement | ifStatement | whileStatement | doStatement | returnStatement
+        "statement": [
+            {"or": [
+                {"custom_type": "letStatement"},
+                {"custom_type": "ifStatement"},
+                {"custom_type": "whileStatement"},
+                {"custom_type": "doStatement"},
+                {"custom_type": "returnStatement"},
+
+            ]},
+        ],
+        # letStatement: 'let' varName ('[' expression ']')? '=' expression ';'
+        "letStatement": [
+            {"type": "keyword", "value": "let"},
+            {"custom_type": "varName"},
+            {"group": [
+                {"type": "symbol", "value": "["},
+                {"custom_type": "expression"},
+                {"type": "symbol", "value": "]"},
+            ], "count": "?"},
+            {"type": "symbol", "value": "="},
+            {"custom_type": "expression"},
+            {"type": "symbol", "value": ";"},
+        ],
+        # ifStatement: 'if' '(' expression ')' '{' statements '}' ( 'else' '{' statements '}' )?
+        "ifStatement": [
+            {"type": "keyword", "value": "if"},
+            {"type": "symbol", "value": "("},
+            {"custom_type": "expression"},
+            {"type": "symbol", "value": ")"},
+            {"type": "symbol", "value": "{"},
+            {"custom_type": "statements"},
+            {"type": "symbol", "value": "}"},
+            {"group": [
+                {"type": "keyword", "value": "else"},
+                {"type": "symbol", "value": "{"},
+                {"custom_type": "statements"},
+                {"type": "symbol", "value": "}"},
+            ], "count": "?"},
+        ],
+        # whileStatement: 'while' '(' expression ')' '{' statements '}'
+        "whileStatement": [
+            {"type": "keyword", "value": "while"},
+            {"type": "symbol", "value": "("},
+            {"custom_type": "expression"},
+            {"type": "symbol", "value": ")"},
+            {"type": "symbol", "value": "{"},
+            {"custom_type": "statements"},
+            {"type": "symbol", "value": "}"},
+        ],
+        # doStatement: 'do' subroutineCall ';'
+        "doStatement": [
+            {"type": "keyword", "value": "do"},
+            {"custom_type": "subroutineCall"},
+            {"type": "symbol", "value": ";"},
+        ],
+        # returnStatement 'return' expression? ';'
+        "returnStatement": [
+            {"type": "keyword", "value": "return"},
+            {"custom_type": "expression", "count": "?"},
+            {"type": "symbol", "value": ";"},
+        ],
+
+        # #################
+        # ## Expressions ##
+        # #################
+
+        # expression: term (op term)*
+        "expression": [
+            {"custom_type": "term"},
+            {"group": [
+                {"custom_type": "op"},
+                {"custom_type": "term"},
+            ], "count": "*"}
+        ],
+        # term: integerConstant | stringConstant | keywordConstant | varName | varName '[' expression
+        #       ']' | subroutineCall | '(' expression ')' | unaryOp term
+        "term": [
+            {"or": [
+                {"type": "integerConstant"},
+                {"type": "stringConstant"},
+                {"type": "keywordConstant"},
+                {"custom_type": "varName"},
+                {"group": [
+                    {"custom_type": "varName"},
+                    {"type": "symbol", "value": "["},
+                    {"custom_type": "expression"},
+                    {"type": "symbol", "value": "]"},
+                ]},
+                {"custom_type": "subroutineCall"},
+                {"group": [
+                    {"type": "symbol", "value": "("},
+                    {"custom_type": "expression"},
+                    {"type": "symbol", "value": ")"},
+                ]},
+                {"group": [
+                    {"custom_type": "unaryOp"},
+                    {"custom_type": "term"},
+                ]},
+            ]},
+
+        ],
+        # subroutineCall: subroutineName '(' expressionList ')' | ( className | varName) '.' subroutineName '('
+        #                 expressionList ')'
+        "subroutineCall": [
+            {"or": [
+                {"group": [
+                    {"custom_type": "subroutineName"},
+                    {"type": "symbol", "value": "("},
+                    {"custom_type": "expressionList"},
+                    {"type": "symbol", "value": ")"},
+                ]},
+                {"group": [
+                    {"or": [
+                        {"custom_type": "className"},
+                        {"custom_type": "varName"},
+                    ]},
+                    {"type": "symbol", "value": "."},
+                    {"custom_type": "subroutineName"},
+                    {"type": "symbol", "value": "("},
+                    {"custom_type": "expressionList"},
+                    {"type": "symbol", "value": ")"},
+                ]},
+            ]},
+
+        ],
+        # expressionList: (expression (',' expression)* )?
+        "expressionList": [
+            {"group": [
+                {"custom_type": "expression"},
+                {"group": [
+                    {"type": "symbol", "value": ","},
+                    {"custom_type": "expression"},
+                ], "count": "*"}
+            ], "count": "?"},
+        ],
+        # op: '+' | '-' | '*' | '/' | '&' | '|' | '<' | '>' | '='
+        "op": [
+            {"or": [
+                {"type": "symbol", "value": "+"},
+                {"type": "symbol", "value": "-"},
+                {"type": "symbol", "value": "*"},
+                {"type": "symbol", "value": "/"},
+                {"type": "symbol", "value": "&"},
+                {"type": "symbol", "value": "|"},
+                {"type": "symbol", "value": "<"},
+                {"type": "symbol", "value": ">"},
+                {"type": "symbol", "value": "="},
+            ]}
+        ],
+        # unaryOp: '-' | '~'
+        "unaryOp": [
+            {"or": [
+                {"type": "symbol", "value": "-"},
+                {"type": "symbol", "value": "~"},
+            ]}
+        ],
+        # keywordConstant: 'true' | 'false' | 'null' | 'this'
+        "keywordConstant": [
+            {"or": [
+                {"type": "keyword", "value": "true"},
+                {"type": "keyword", "value": "false"},
+                {"type": "keyword", "value": "null"},
+                {"type": "keyword", "value": "this"},
+            ]}
+        ],
+    }
+
     def get_token_type(self, word):
         pattern_number = "^[0-9]+$"
         pattern_identifier = "^[a-zA-Z_][a-zA-Z0-9_]*$"
