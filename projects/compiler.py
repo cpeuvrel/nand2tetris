@@ -90,7 +90,7 @@ class Compiler:
             ], "count": "*"},
             {"type": "symbol", "value": ";"},
         ],
-        # type: 'int' | 'char' | 'boolean' | className 
+        # Type: 'int' | 'char' | 'boolean' | className 
         "type": [
             {"or": [
                 {"type": "keyword", "value": "int"},
@@ -433,9 +433,10 @@ class Compiler:
             self.tokens_xml.append("<{}> {} </{}>".format(token["type"], escape(token["value"]), token["type"]))
         self.tokens_xml.append("</tokens>")
 
-    def match_token(self, tokens_to_match, tokens, count=None):
+    def match_token(self, tokens_to_match, tokens, count=None, current_object_name=None):
         i = 0
         is_match = True
+        matched_tokens = []
 
         for current_object in tokens_to_match:
             current_object_count = current_object["count"] if "count" in current_object else None
@@ -450,23 +451,27 @@ class Compiler:
                     # Value mismatch
                     is_match = False
                     break
+                matched_tokens.append(tokens[i])
                 i += 1
                 continue
 
             if "custom_type" in current_object:
-                res = self.match_token(self.jack_syntax[current_object["custom_type"]], tokens[i:], current_object_count)
+                res = self.match_token(self.jack_syntax[current_object["custom_type"]], tokens[i:], current_object_count, current_object["custom_type"])
                 if not res["is_match"]:
                     is_match = False
                     break
+                matched_tokens.append(res["matched_tokens"])
                 i += res["forward_index"]
                 continue
 
             if "or" in current_object:
                 match_once = False
                 for or_tokens in current_object["or"]:
-                    res = self.match_token([or_tokens], tokens[i:], current_object_count)
+                    #res = self.match_token([or_tokens], tokens[i:], current_object_count, or_tokens["type"] if "type" in or_tokens else or_tokens["custom_type"] if "custom_type" in or_tokens else None)
+                    res = self.match_token([or_tokens], tokens[i:], current_object_count, or_tokens["type"] if "type" in or_tokens else None)
                     if res["is_match"]:
                         match_once = True
+                        matched_tokens.append(res["matched_tokens"])
                         i += res["forward_index"]
                         break
                 if not match_once:
@@ -475,60 +480,203 @@ class Compiler:
                 continue
 
             if "group" in current_object:
-                res = self.match_token(current_object["group"], tokens[i:], current_object_count)
+                res = self.match_token(current_object["group"], tokens[i:], current_object_count, None)
                 if not res["is_match"]:
                     is_match = False
                     break
+                matched_tokens.append(res["matched_tokens"])
                 i += res["forward_index"]
                 continue
 
         if not is_match:
+            matched_tokens = []
             i = 0
 
         if count == "*":
+            all_matched_tokens = [matched_tokens]
             if is_match:
                 # See if we can match more of the pattern
-                res = self.match_token(tokens_to_match, tokens[i:], count)
+                res = self.match_token(tokens_to_match, tokens[i:], count, current_object_name)
+                if res['is_match']:
+                    all_matched_tokens.append(res["matched_tokens"]['value'])
                 i += res["forward_index"]
-            return {"is_match": True, "forward_index": i, "matched_tokens": tokens[:i]}
+            return {"is_match": True, "forward_index": i, "matched_tokens": {"type": current_object_name, "value":  all_matched_tokens}}
         elif count == "?":
-            return {"is_match": True, "forward_index": i, "matched_tokens": tokens[:i]}
+            return {"is_match": True, "forward_index": i, "matched_tokens": {"type": current_object_name, "value":  [matched_tokens]}}
 
-        return {"is_match": is_match, "forward_index": i, "matched_tokens": tokens[:i]}
+        return {"is_match": is_match, "forward_index": i, "matched_tokens": {"type": current_object_name, "value":  [matched_tokens]}}
 
-    def parse_tokens(self, type_name, tokens):
-        current_object_grammar = self.jack_syntax[type_name]
+    def is_primitive_token_type(self, token_type):
+        return token_type in ("keyword", "symbol", "integerConstant", "identifier", "stringConstant")
 
-        res = self.match_token(current_object_grammar, tokens)
+    def flatten(self, S):
+        if S == []:
+            return S
+        if isinstance(S[0], list):
+            return self.flatten(S[0]) + self.flatten(S[1:])
+        return S[:1] + self.flatten(S[1:])
 
-        pass
+    def sanitize_parsing_first_pass(self, values, token_type):
+        # Input:
+        #   values: [[{1}, {1'}], [{2}], [{3}]]
+        #   type: t
+        # Output:
+        #   [{type: t, value: [{1}, {1'}]}, {type: t, value: [{2}]}, {type: t, value: [{3}]}]
 
-        # for current_object in current_object_grammar:
+        # Input:
+        #   values: [[{1}, {2}, {3}]]
+        #   type: t
+        # Output:
+        #   [{type: t, value: [{1}, {2}, {3}]}]
 
-        #    # Primary type
-        #    if "type" in current_object:
-        #        if tokens[i]["type"] != current_object["type"]:
-        #            # Type mismatch
-        #            return False
-        #        if "value" in current_object and tokens[i]["value"] != current_object["value"]:
-        #            # Value mismatch
-        #            return False
+        # Input:
+        #   values: "foobar"
+        #   type: t
+        # Output:
+        #   {type: t, value: "foobar"}
 
-        #        # FIXME
-        #        res.append(tokens[i])
-        #        i += 1
-        #        continue
+        res = []
 
-        #    if "custom_type" in current_object:
-        #        self.parse_tokens(current_object["custom_type"], tokens[i:])
+        if type(values) == list:
+            for token in values:
+                flatten_token = token
 
-        #    # Handle count
-        #    # Handle group
-        #    # Handle or
+                if type(token) == list:
+                    flatten_token = []
+
+                    token = self.flatten(token)
+                    for subtoken in token:
+                        if "value" not in subtoken:
+                            continue
+                        flatten_token.append(self.sanitize_parsing_first_pass(subtoken["value"], subtoken["type"]))
+
+                    flatten_token = self.flatten(flatten_token)
+
+                if len(flatten_token) > 0:
+                    res.append({"type": token_type, "value": flatten_token})
+        else:
+            return {"type": token_type,
+                    "value": values}
+
+        return res
+
+    def sanitize_parsing_second_pass(self, parsed_tokens):
+        is_list = type(parsed_tokens["value"]) == list
+        token_type = parsed_tokens["type"]
+        sanitized_tokens = []
+
+        if self.is_primitive_token_type(token_type):
+            if is_list:
+                if parsed_tokens["value"][0]["type"] != token_type or len(parsed_tokens["value"]) > 1:
+                    print("Problem parsing token {}".format(parsed_tokens))
+                    sys.exit(1)
+                parsed_tokens["value"] = parsed_tokens["value"][0]["value"]
+            return parsed_tokens
+
+        if is_list:
+            for token in parsed_tokens["value"]:
+                token = self.sanitize_parsing_second_pass(token)
+                if token:
+                    sanitized_tokens.append(token)
+
+        if len(sanitized_tokens) == 1 and self.is_primitive_token_type(sanitized_tokens[0]["type"]):
+            return {"type": sanitized_tokens[0]["type"], "value": sanitized_tokens[0]["value"]}
+
+        return {"type": token_type, "value": sanitized_tokens}
+
+    def sanitize_parsing_third_pass(self, parsed_tokens):
+        # Merge tokens with "None" type with children tokens
+        res = parsed_tokens
+
+        if type(parsed_tokens["value"]) == list:
+            tokens = []
+            for token in parsed_tokens["value"]:
+                if token["type"]:
+                    tokens.append(self.sanitize_parsing_third_pass(token))
+                else:
+                    if type(token["value"]) != list:
+                        raise TypeError("Token with None type and no array as value")
+
+                    for subtoken in token["value"]:
+                        # FIXME: make it work for arbitrary depth
+
+                        if subtoken["type"]:
+                            tokens.append(self.sanitize_parsing_third_pass(subtoken))
+                        else:
+                            if type(subtoken["value"]) != list:
+                                raise TypeError("Token with None type and no array as value")
+                            for subsubtoken in subtoken["value"]:
+                                tokens.append(self.sanitize_parsing_third_pass(subsubtoken))
+
+            res = {"type": parsed_tokens["type"], "value": tokens}
+
+        return res
+
+    def sanitize_parsing_forth_pass(self, parsed_tokens):
+        # Merge tokens which can only have one child with children token
+        res = parsed_tokens
+
+        tokens_to_merge = [
+            "statement",
+            "subroutineCall",
+        ]
+
+        if type(parsed_tokens["value"]) == list:
+            tokens = []
+            for token in parsed_tokens["value"]:
+                if token["type"] in tokens_to_merge:
+                    tokens.append(self.sanitize_parsing_forth_pass(token["value"][0]))
+
+                else:
+                    tokens.append(self.sanitize_parsing_forth_pass(token))
+
+            res = {"type": parsed_tokens["type"], "value": tokens}
+
+        return res
+
+    def ast2xml(self, local_ast, indent_level=0):
+        indent_spaces = ""
+        for _ in range(indent_level):
+            indent_spaces += " "
+
+        ast_type = local_ast["type"]
+        ast_value = local_ast["value"]
+
+        if type(ast_value) != list:
+            self.parsed_xml.append("{}<{}> {} </{}>".format(indent_spaces, ast_type, ast_value, ast_type))
+
+        else:
+            self.parsed_xml.append("{}<{}>".format(indent_spaces, ast_type))
+            for token in ast_value:
+                self.ast2xml(token, indent_level+2)
+            self.parsed_xml.append("{}</{}>".format(indent_spaces, ast_type))
+
+
+
+
+
 
     def parse_file(self):
         # Parse class
-        self.parse_tokens("class", self.tokens)
+        res = self.match_token(self.jack_syntax["class"], self.tokens, current_object_name="class")
+
+        if not res["is_match"]:
+            raise ValueError("The current file isn't valid")
+
+        if res["forward_index"] != len(self.tokens):
+            raise ValueError("Not all tokens were parsed")
+
+        base_type = res["matched_tokens"]["type"]
+
+        sanitized = self.sanitize_parsing_first_pass(res["matched_tokens"]["value"], base_type)[0]
+
+        self.ast = self.sanitize_parsing_second_pass(sanitized)
+
+        self.ast = self.sanitize_parsing_third_pass(self.ast)
+
+        self.ast = self.sanitize_parsing_forth_pass(self.ast)
+
+        self.ast2xml(self.ast)
 
     def compile_file(self, file):
         self.tokenize_file(file)
@@ -540,9 +688,9 @@ class Compiler:
             print("Write tokens result in {}".format(outfile_token))
             f.writelines(["{}\n".format(line) for line in self.tokens_xml])
 
-        with open(outfile_token, "w") as f:
+        with open(outfile_parsed, "w") as f:
             print("Write parsed result in {}".format(outfile_parsed))
-            # f.writelines(["{}\n".format(line) for line in self.parsed_xml])
+            f.writelines(["{}\n".format(line) for line in self.parsed_xml])
 
     def main(self, file):
         if os.path.isdir(file):
