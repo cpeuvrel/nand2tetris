@@ -252,15 +252,14 @@ class Compiler:
             {"or": [
                 {"type": "integerConstant"},
                 {"type": "stringConstant"},
-                {"type": "keywordConstant"},
-                {"custom_type": "varName"},
+                {"custom_type": "keywordConstant"},
+                {"custom_type": "subroutineCall"},
                 {"group": [
                     {"custom_type": "varName"},
                     {"type": "symbol", "value": "["},
                     {"custom_type": "expression"},
                     {"type": "symbol", "value": "]"},
                 ]},
-                {"custom_type": "subroutineCall"},
                 {"group": [
                     {"type": "symbol", "value": "("},
                     {"custom_type": "expression"},
@@ -270,6 +269,7 @@ class Compiler:
                     {"custom_type": "unaryOp"},
                     {"custom_type": "term"},
                 ]},
+                {"custom_type": "varName"},
             ]},
 
         ],
@@ -338,6 +338,10 @@ class Compiler:
             ]}
         ],
     }
+
+    def fail(self, message):
+        print(message, file=sys.stderr)
+        sys.exit(1)
 
     def get_token_type(self, word):
         pattern_number = "^[0-9]+$"
@@ -429,30 +433,102 @@ class Compiler:
             self.tokens_xml.append("<{}> {} </{}>".format(token["type"], escape(token["value"]), token["type"]))
         self.tokens_xml.append("</tokens>")
 
-    def parse_file(self):
-        for i in range(len(self.tokens)):
-            token = self.tokens[i]
+    def match_token(self, tokens_to_match, tokens, count=None):
+        i = 0
+        is_match = True
 
-            if token["type"] == "keyword":
-                if token["value"] == "class":
-                    self.ast.append(token)
+        for current_object in tokens_to_match:
+            current_object_count = current_object["count"] if "count" in current_object else None
 
-                    # class identifier
-                    i += 1
-                    token = self.tokens[i]
-                    if token["type"] != "identifier":
-                        print("Wrong token type after 'class', should be 'identifier' and got {}".format(token),
-                              file=sys.stderr)
+            # Primary type
+            if "type" in current_object:
+                if tokens[i]["type"] != current_object["type"]:
+                    # Type mismatch
+                    is_match = False
+                    break
+                if "value" in current_object and tokens[i]["value"] != current_object["value"]:
+                    # Value mismatch
+                    is_match = False
+                    break
+                i += 1
+                continue
+
+            if "custom_type" in current_object:
+                res = self.match_token(self.jack_syntax[current_object["custom_type"]], tokens[i:], current_object_count)
+                if not res["is_match"]:
+                    is_match = False
+                    break
+                i += res["forward_index"]
+                continue
+
+            if "or" in current_object:
+                match_once = False
+                for or_tokens in current_object["or"]:
+                    res = self.match_token([or_tokens], tokens[i:], current_object_count)
+                    if res["is_match"]:
+                        match_once = True
+                        i += res["forward_index"]
                         break
-                    self.ast.append(token)
+                if not match_once:
+                    is_match = False
+                    break
+                continue
 
-                    # open bracket
+            if "group" in current_object:
+                res = self.match_token(current_object["group"], tokens[i:], current_object_count)
+                if not res["is_match"]:
+                    is_match = False
+                    break
+                i += res["forward_index"]
+                continue
 
+        if not is_match:
+            i = 0
 
+        if count == "*":
+            if is_match:
+                # See if we can match more of the pattern
+                res = self.match_token(tokens_to_match, tokens[i:], count)
+                i += res["forward_index"]
+            return {"is_match": True, "forward_index": i, "matched_tokens": tokens[:i]}
+        elif count == "?":
+            return {"is_match": True, "forward_index": i, "matched_tokens": tokens[:i]}
 
-            if token["type"] == "symbol" and token["value"] in ("{", "[", "("):
-                pass
-            pass
+        return {"is_match": is_match, "forward_index": i, "matched_tokens": tokens[:i]}
+
+    def parse_tokens(self, type_name, tokens):
+        current_object_grammar = self.jack_syntax[type_name]
+
+        res = self.match_token(current_object_grammar, tokens)
+
+        pass
+
+        # for current_object in current_object_grammar:
+
+        #    # Primary type
+        #    if "type" in current_object:
+        #        if tokens[i]["type"] != current_object["type"]:
+        #            # Type mismatch
+        #            return False
+        #        if "value" in current_object and tokens[i]["value"] != current_object["value"]:
+        #            # Value mismatch
+        #            return False
+
+        #        # FIXME
+        #        res.append(tokens[i])
+        #        i += 1
+        #        continue
+
+        #    if "custom_type" in current_object:
+        #        self.parse_tokens(current_object["custom_type"], tokens[i:])
+
+        #    # Handle count
+        #    # Handle group
+        #    # Handle or
+
+    def parse_file(self):
+        # Parse class
+        self.parse_tokens("class", self.tokens)
 
     def compile_file(self, file):
         self.tokenize_file(file)
