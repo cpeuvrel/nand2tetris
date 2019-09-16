@@ -516,124 +516,6 @@ class Compiler:
             return self.flatten(S[0]) + self.flatten(S[1:])
         return S[:1] + self.flatten(S[1:])
 
-    def sanitize_parsing_first_pass(self, values, token_type):
-        # Input:
-        #   values: [[{1}, {1'}], [{2}], [{3}]]
-        #   type: t
-        # Output:
-        #   [{type: t, value: [{1}, {1'}]}, {type: t, value: [{2}]}, {type: t, value: [{3}]}]
-
-        # Input:
-        #   values: [[{1}, {2}, {3}]]
-        #   type: t
-        # Output:
-        #   [{type: t, value: [{1}, {2}, {3}]}]
-
-        # Input:
-        #   values: "foobar"
-        #   type: t
-        # Output:
-        #   {type: t, value: "foobar"}
-
-        res = []
-
-        if type(values) == list:
-            for token in values:
-                flatten_token = token
-
-                if type(token) == list:
-                    flatten_token = []
-
-                    token = self.flatten(token)
-                    for subtoken in token:
-                        if "value" not in subtoken:
-                            continue
-                        flatten_token.append(self.sanitize_parsing_first_pass(subtoken["value"], subtoken["type"]))
-
-                    flatten_token = self.flatten(flatten_token)
-
-                if len(flatten_token) > 0:
-                    res.append({"type": token_type, "value": flatten_token})
-        else:
-            return {"type": token_type,
-                    "value": values}
-
-        return res
-
-    def sanitize_parsing_second_pass(self, parsed_tokens):
-        is_list = type(parsed_tokens["value"]) == list
-        token_type = parsed_tokens["type"]
-        sanitized_tokens = []
-
-        if self.is_primitive_token_type(token_type):
-            if is_list:
-                if parsed_tokens["value"][0]["type"] != token_type or len(parsed_tokens["value"]) > 1:
-                    print("Problem parsing token {}".format(parsed_tokens))
-                    sys.exit(1)
-                parsed_tokens["value"] = parsed_tokens["value"][0]["value"]
-            return parsed_tokens
-
-        if is_list:
-            for token in parsed_tokens["value"]:
-                token = self.sanitize_parsing_second_pass(token)
-                if token:
-                    sanitized_tokens.append(token)
-
-        if len(sanitized_tokens) == 1 and self.is_primitive_token_type(sanitized_tokens[0]["type"]):
-            return {"type": sanitized_tokens[0]["type"], "value": sanitized_tokens[0]["value"]}
-
-        return {"type": token_type, "value": sanitized_tokens}
-
-    def sanitize_parsing_third_pass(self, parsed_tokens):
-        # Merge tokens with "None" type with children tokens
-        res = parsed_tokens
-
-        if type(parsed_tokens["value"]) == list:
-            tokens = []
-            for token in parsed_tokens["value"]:
-                if token["type"]:
-                    tokens.append(self.sanitize_parsing_third_pass(token))
-                else:
-                    if type(token["value"]) != list:
-                        raise TypeError("Token with None type and no array as value")
-
-                    for subtoken in token["value"]:
-                        # FIXME: make it work for arbitrary depth
-
-                        if subtoken["type"]:
-                            tokens.append(self.sanitize_parsing_third_pass(subtoken))
-                        else:
-                            if type(subtoken["value"]) != list:
-                                raise TypeError("Token with None type and no array as value")
-                            for subsubtoken in subtoken["value"]:
-                                tokens.append(self.sanitize_parsing_third_pass(subsubtoken))
-
-            res = {"type": parsed_tokens["type"], "value": tokens}
-
-        return res
-
-    def sanitize_parsing_forth_pass(self, parsed_tokens):
-        # Merge tokens which can only have one child with children token
-        res = parsed_tokens
-
-        tokens_to_merge = [
-            "statement",
-            "subroutineCall",
-        ]
-
-        if type(parsed_tokens["value"]) == list:
-            tokens = []
-            for token in parsed_tokens["value"]:
-                if token["type"] in tokens_to_merge:
-                    tokens.append(self.sanitize_parsing_forth_pass(token["value"][0]))
-
-                else:
-                    tokens.append(self.sanitize_parsing_forth_pass(token))
-
-            res = {"type": parsed_tokens["type"], "value": tokens}
-
-        return res
-
     def ast2xml(self, local_ast, indent_level=0):
         indent_spaces = ""
         for _ in range(indent_level):
@@ -651,11 +533,6 @@ class Compiler:
                 self.ast2xml(token, indent_level+2)
             self.parsed_xml.append("{}</{}>".format(indent_spaces, ast_type))
 
-
-
-
-
-
     def parse_file(self):
         # Parse class
         res = self.match_token(self.jack_syntax["class"], self.tokens, current_object_name="class")
@@ -666,15 +543,7 @@ class Compiler:
         if res["forward_index"] != len(self.tokens):
             raise ValueError("Not all tokens were parsed")
 
-        base_type = res["matched_tokens"]["type"]
-
-        sanitized = self.sanitize_parsing_first_pass(res["matched_tokens"]["value"], base_type)[0]
-
-        self.ast = self.sanitize_parsing_second_pass(sanitized)
-
-        self.ast = self.sanitize_parsing_third_pass(self.ast)
-
-        self.ast = self.sanitize_parsing_forth_pass(self.ast)
+        self.ast = res["matched_tokens"]
 
         self.ast2xml(self.ast)
 
