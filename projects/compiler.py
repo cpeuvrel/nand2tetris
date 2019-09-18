@@ -3,6 +3,7 @@
 import sys
 import os
 
+from compiler.jack_compiler import JackCompiler
 from compiler.jack_tokenizer import JackTokenizer
 
 class Compiler:
@@ -27,11 +28,14 @@ class Compiler:
     @staticmethod
     def compile_file(file):
         tokenizer = JackTokenizer()
+        compiler = JackCompiler()
 
         tokenizer.tokenize_file(file)
+        compiler.compile_ast(tokenizer.ast)
 
         outfile_token = "{}T.xml".format(file.split(".jack", 1)[0])
         outfile_parsed = "{}.xml".format(file.split(".jack", 1)[0])
+        outfile_vm = "{}.vm".format(file.split(".jack", 1)[0])
 
         with open(outfile_token, "w") as f:
             print("Write tokens result in {}".format(outfile_token))
@@ -40,6 +44,10 @@ class Compiler:
         with open(outfile_parsed, "w") as f:
             print("Write parsed result in {}".format(outfile_parsed))
             f.writelines(["{}\n".format(line) for line in tokenizer.parsed_xml])
+
+        with open(outfile_vm, "w") as f:
+            print("Write vm result in {}".format(outfile_vm))
+            f.writelines(["{}\n".format(line) for line in compiler.vm])
 
 
 if __name__ == "__main__":
