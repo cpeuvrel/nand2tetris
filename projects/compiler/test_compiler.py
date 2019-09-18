@@ -1,10 +1,9 @@
 #!/usr/bin/env python
 
-from compiler import Compiler
+from compiler.jack_tokenizer import JackTokenizer
 
-
-class TestCompiler:
-    compiler = Compiler()
+class TestJackTokenizer:
+    tokenizer = JackTokenizer()
 
     # Test end token with only primary type, no constraint on value (identifier)
     def test_match_token_varName(self):
@@ -19,7 +18,7 @@ class TestCompiler:
             "matched_tokens": tokens[0]
         }
 
-        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+        out = self.tokenizer.match_token(self.tokenizer.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
 
         assert out == excepted_out
 
@@ -36,7 +35,7 @@ class TestCompiler:
             "matched_tokens": tokens[0]
         }
 
-        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+        out = self.tokenizer.match_token(self.tokenizer.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
 
         assert out == excepted_out
 
@@ -53,7 +52,7 @@ class TestCompiler:
             "matched_tokens": tokens[0]
         }
 
-        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+        out = self.tokenizer.match_token(self.tokenizer.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
 
         assert out == excepted_out
 
@@ -77,7 +76,7 @@ class TestCompiler:
             }
         }
 
-        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+        out = self.tokenizer.match_token(self.tokenizer.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
 
         assert out == excepted_out
 
@@ -103,7 +102,7 @@ class TestCompiler:
             }
         }
 
-        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+        out = self.tokenizer.match_token(self.tokenizer.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
 
         assert out == excepted_out
 
@@ -131,7 +130,7 @@ class TestCompiler:
             }
         }
 
-        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+        out = self.tokenizer.match_token(self.tokenizer.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
 
         assert out == excepted_out
 
@@ -154,7 +153,7 @@ class TestCompiler:
             }
         }
 
-        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+        out = self.tokenizer.match_token(self.tokenizer.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
 
         assert out == excepted_out
 
@@ -180,7 +179,7 @@ class TestCompiler:
             }
         }
 
-        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+        out = self.tokenizer.match_token(self.tokenizer.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
 
         assert out == excepted_out
 
@@ -212,7 +211,7 @@ class TestCompiler:
             }
         }
 
-        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+        out = self.tokenizer.match_token(self.tokenizer.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
 
         assert out == excepted_out
 
@@ -248,7 +247,7 @@ class TestCompiler:
             }
         }
 
-        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+        out = self.tokenizer.match_token(self.tokenizer.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
 
         assert out == excepted_out
 
@@ -284,7 +283,7 @@ class TestCompiler:
             }
         }
 
-        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+        out = self.tokenizer.match_token(self.tokenizer.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
 
         assert out == excepted_out
 
@@ -336,7 +335,7 @@ class TestCompiler:
             }
         }
 
-        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+        out = self.tokenizer.match_token(self.tokenizer.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
 
         assert out == excepted_out
 
@@ -404,7 +403,7 @@ class TestCompiler:
             }
         }
 
-        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+        out = self.tokenizer.match_token(self.tokenizer.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
 
         assert out == excepted_out
 
@@ -431,7 +430,7 @@ class TestCompiler:
             }
         }
 
-        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+        out = self.tokenizer.match_token(self.tokenizer.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
 
         assert out == excepted_out
 
@@ -462,7 +461,7 @@ class TestCompiler:
             }
         }
 
-        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+        out = self.tokenizer.match_token(self.tokenizer.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
 
         assert out == excepted_out
 
@@ -506,7 +505,7 @@ class TestCompiler:
             }
         }
 
-        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+        out = self.tokenizer.match_token(self.tokenizer.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
 
         assert out == excepted_out
 
@@ -570,7 +569,7 @@ class TestCompiler:
             }
         }
 
-        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+        out = self.tokenizer.match_token(self.tokenizer.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
 
         assert out == excepted_out
 
@@ -616,7 +615,7 @@ class TestCompiler:
             }
         }
 
-        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+        out = self.tokenizer.match_token(self.tokenizer.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
 
         assert out == excepted_out
 
@@ -660,7 +659,7 @@ class TestCompiler:
             }
         }
 
-        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+        out = self.tokenizer.match_token(self.tokenizer.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
 
         assert out == excepted_out
 
@@ -717,7 +716,7 @@ class TestCompiler:
             }
         }
 
-        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+        out = self.tokenizer.match_token(self.tokenizer.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
 
         assert out == excepted_out
 
@@ -748,7 +747,7 @@ class TestCompiler:
             }
         }
 
-        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+        out = self.tokenizer.match_token(self.tokenizer.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
 
         assert out == excepted_out
 
@@ -778,7 +777,7 @@ class TestCompiler:
             }
         }
 
-        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+        out = self.tokenizer.match_token(self.tokenizer.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
 
         assert out == excepted_out
 
@@ -802,7 +801,7 @@ class TestCompiler:
             }
         }
 
-        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+        out = self.tokenizer.match_token(self.tokenizer.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
 
         assert out == excepted_out
 
@@ -835,7 +834,7 @@ class TestCompiler:
             }
         }
 
-        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+        out = self.tokenizer.match_token(self.tokenizer.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
 
         assert out == excepted_out
 
@@ -868,7 +867,7 @@ class TestCompiler:
             }
         }
 
-        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+        out = self.tokenizer.match_token(self.tokenizer.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
 
         assert out == excepted_out
 
@@ -891,7 +890,7 @@ class TestCompiler:
             }
         }
 
-        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+        out = self.tokenizer.match_token(self.tokenizer.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
 
         assert out == excepted_out
 
@@ -916,7 +915,7 @@ class TestCompiler:
             }
         }
 
-        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+        out = self.tokenizer.match_token(self.tokenizer.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
 
         assert out == excepted_out
 
@@ -974,7 +973,7 @@ class TestCompiler:
             }
         }
 
-        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+        out = self.tokenizer.match_token(self.tokenizer.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
 
         assert out == excepted_out
 
@@ -1048,6 +1047,6 @@ class TestCompiler:
             }
         }
 
-        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+        out = self.tokenizer.match_token(self.tokenizer.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
 
         assert out == excepted_out

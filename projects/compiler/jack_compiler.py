@@ -1,0 +1,2 @@
+class JackCompiler:
+    pass
