@@ -3,9 +3,7 @@
 import sys
 import re
 import os
-from pprint import pprint
 from xml.sax.saxutils import escape
-
 
 
 class Compiler:
@@ -129,7 +127,6 @@ class Compiler:
                     {"custom_type": "type"},
                     {"custom_type": "varName"},
                 ], "count": "*"}
-
             ], "count": "?"}
         ],
         # subroutineBody: '{' varDec* statements '}'
@@ -439,6 +436,11 @@ class Compiler:
         matched_tokens = []
 
         for current_object in tokens_to_match:
+            if len(tokens[i:]) == 0:
+                if "count" not in current_object or current_object["count"] not in ["*", "?"]:
+                    is_match = False
+                break
+
             current_object_count = current_object["count"] if "count" in current_object else None
 
             # Primary type
@@ -451,6 +453,7 @@ class Compiler:
                     # Value mismatch
                     is_match = False
                     break
+
                 matched_tokens.append(tokens[i])
                 i += 1
                 continue
@@ -460,18 +463,49 @@ class Compiler:
                 if not res["is_match"]:
                     is_match = False
                     break
-                matched_tokens.append(res["matched_tokens"])
+
+                if res["forward_index"] > 0 or current_object_count not in ("*", "?"):
+                    if res["multiple_tokens"]:
+                        for token in res["matched_tokens"]["value"]:
+                            matched_tokens.append({
+                                "type": res["matched_tokens"]["type"],
+                                "value": token
+                            })
+                    else:
+                        matched_tokens.append(res["matched_tokens"])
                 i += res["forward_index"]
                 continue
 
             if "or" in current_object:
                 match_once = False
                 for or_tokens in current_object["or"]:
-                    #res = self.match_token([or_tokens], tokens[i:], current_object_count, or_tokens["type"] if "type" in or_tokens else or_tokens["custom_type"] if "custom_type" in or_tokens else None)
                     res = self.match_token([or_tokens], tokens[i:], current_object_count, or_tokens["type"] if "type" in or_tokens else None)
                     if res["is_match"]:
                         match_once = True
-                        matched_tokens.append(res["matched_tokens"])
+
+                        if res["matched_tokens"]["type"] and res["forward_index"] > 0:
+                            if res["multiple_tokens"]:
+                                for token in res["matched_tokens"]["value"]:
+                                    matched_tokens.append({
+                                        "type": res["matched_tokens"]["type"],
+                                        "value": token
+                                    })
+                            else:
+                                matched_tokens.append(res["matched_tokens"])
+
+                        else:
+                            # TODO test
+                            if res["multiple_tokens"]:
+                                for token in res["matched_tokens"]["value"]:
+                                    matched_tokens.append({
+                                        "type": res["matched_tokens"]["type"],
+                                        "value": token
+                                    })
+                            elif type(res["matched_tokens"]["value"]) == list:
+                                matched_tokens += res["matched_tokens"]["value"]
+                            else:
+                                matched_tokens += res["matched_tokens"]
+
                         i += res["forward_index"]
                         break
                 if not match_once:
@@ -484,7 +518,18 @@ class Compiler:
                 if not res["is_match"]:
                     is_match = False
                     break
-                matched_tokens.append(res["matched_tokens"])
+
+                if res["multiple_tokens"]:
+                    for token in res["matched_tokens"]["value"]:
+                        matched_tokens.append({
+                            "type": res["matched_tokens"]["type"],
+                            "value": token
+                        })
+                elif type(res["matched_tokens"]["value"]) == list:
+                    matched_tokens += res["matched_tokens"]["value"]
+                else:
+                    matched_tokens.append(res["matched_tokens"])
+
                 i += res["forward_index"]
                 continue
 
@@ -492,29 +537,62 @@ class Compiler:
             matched_tokens = []
             i = 0
 
+        # Don't add these token in AST
+        ignored_tokens = ["statement", "subroutineCall"]
+        for token_idx, token in enumerate(matched_tokens):
+            if token["type"] in ignored_tokens:
+                if len(matched_tokens) == 1:
+                    matched_tokens = matched_tokens[0]["value"]
+                else:
+                    matched_tokens[token_idx] = token["value"]
+        matched_tokens = self.flatten(matched_tokens)
+
+        forced_token = ["expression", "term"]
+        if len(matched_tokens) == 1 and self.is_primitive_token_type(matched_tokens[0]["type"]) and current_object_name not in forced_token:
+            current_object_name = matched_tokens[0]["type"]
+            matched_tokens = matched_tokens[0]["value"]
+
         if count == "*":
-            all_matched_tokens = [matched_tokens]
+            multiple_tokens = False
             if is_match:
                 # See if we can match more of the pattern
                 res = self.match_token(tokens_to_match, tokens[i:], count, current_object_name)
-                if res['is_match']:
-                    all_matched_tokens.append(res["matched_tokens"]['value'])
-                i += res["forward_index"]
-            return {"is_match": True, "forward_index": i, "matched_tokens": {"type": current_object_name, "value":  all_matched_tokens}}
-        elif count == "?":
-            return {"is_match": True, "forward_index": i, "matched_tokens": {"type": current_object_name, "value":  [matched_tokens]}}
 
-        return {"is_match": is_match, "forward_index": i, "matched_tokens": {"type": current_object_name, "value":  [matched_tokens]}}
+                if res['is_match'] and res["forward_index"] > 0 and current_object_name:
+                    # We want to create several token of current type
+                    matched_tokens = [matched_tokens]
+                    multiple_tokens = True
+
+                    if res["multiple_tokens"]:
+                        matched_tokens += res["matched_tokens"]['value']
+                    else:
+                        matched_tokens.append(res["matched_tokens"]['value'])
+
+                elif type(res["matched_tokens"]["value"]) == list:
+                    matched_tokens += res["matched_tokens"]["value"]
+                else:
+                    matched_tokens += res["matched_tokens"]
+
+                i += res["forward_index"]
+            return {"is_match": True, "forward_index": i, "multiple_tokens": multiple_tokens,
+                    "matched_tokens": {"type": current_object_name, "value":  matched_tokens}}
+
+        elif count == "?":
+            return {"is_match": True, "forward_index": i, "multiple_tokens": False,
+                    "matched_tokens": {"type": current_object_name, "value":  matched_tokens}}
+
+        return {"is_match": is_match, "forward_index": i, "multiple_tokens": False,
+                "matched_tokens": {"type": current_object_name, "value":  matched_tokens}}
 
     def is_primitive_token_type(self, token_type):
         return token_type in ("keyword", "symbol", "integerConstant", "identifier", "stringConstant")
 
-    def flatten(self, S):
-        if S == []:
-            return S
-        if isinstance(S[0], list):
-            return self.flatten(S[0]) + self.flatten(S[1:])
-        return S[:1] + self.flatten(S[1:])
+    def flatten(self, array):
+        if not array:
+            return array
+        if isinstance(array[0], list):
+            return self.flatten(array[0]) + self.flatten(array[1:])
+        return array[:1] + self.flatten(array[1:])
 
     def ast2xml(self, local_ast, indent_level=0):
         indent_spaces = ""
@@ -525,7 +603,7 @@ class Compiler:
         ast_value = local_ast["value"]
 
         if type(ast_value) != list:
-            self.parsed_xml.append("{}<{}> {} </{}>".format(indent_spaces, ast_type, ast_value, ast_type))
+            self.parsed_xml.append("{}<{}> {} </{}>".format(indent_spaces, ast_type, escape(ast_value), ast_type))
 
         else:
             self.parsed_xml.append("{}<{}>".format(indent_spaces, ast_type))

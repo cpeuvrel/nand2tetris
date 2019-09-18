@@ -3,7 +3,7 @@
 from compiler import Compiler
 
 
-class TestCompiler():
+class TestCompiler:
     compiler = Compiler()
 
     # Test end token with only primary type, no constraint on value (identifier)
@@ -14,6 +14,7 @@ class TestCompiler():
 
         excepted_out = {
             "is_match": True,
+            "multiple_tokens": False,
             "forward_index": len(tokens),
             "matched_tokens": tokens[0]
         }
@@ -30,6 +31,7 @@ class TestCompiler():
 
         excepted_out = {
             "is_match": True,
+            "multiple_tokens": False,
             "forward_index": len(tokens),
             "matched_tokens": tokens[0]
         }
@@ -46,6 +48,7 @@ class TestCompiler():
 
         excepted_out = {
             "is_match": True,
+            "multiple_tokens": False,
             "forward_index": len(tokens),
             "matched_tokens": tokens[0]
         }
@@ -66,6 +69,7 @@ class TestCompiler():
 
         excepted_out = {
             "is_match": True,
+            "multiple_tokens": False,
             "forward_index": len(tokens),
             "matched_tokens": {
                 "type": tokens_type,
@@ -91,6 +95,7 @@ class TestCompiler():
 
         excepted_out = {
             "is_match": True,
+            "multiple_tokens": False,
             "forward_index": len(tokens),
             "matched_tokens": {
                 "type": tokens_type,
@@ -118,6 +123,7 @@ class TestCompiler():
 
         excepted_out = {
             "is_match": True,
+            "multiple_tokens": False,
             "forward_index": len(tokens),
             "matched_tokens": {
                 "type": tokens_type,
@@ -129,92 +135,919 @@ class TestCompiler():
 
         assert out == excepted_out
 
-
-    def test_sanitize_parsing_first_pass1(self):
-        input_type = "class"
-        input_values = [[
-            {"type": "foo", "value": "Foo"},
-            {"type": "bar", "value": "Bar"},
-            {"type": "sub", "value": [
-                [{"type": "sub1", "value": "Sub1"}, {"type": "sub2", "value": "Sub2"}],
-                [{"type": "sub1", "value": "Sub1'"}, {"type": "sub2", "value": "Sub2'"}]
-            ]},
-        ]]
-        excepted_output = [{
-            "type": input_type,
-            "value": [
-                {"type": "foo", "value": "Foo"},
-                {"type": "bar", "value": "Bar"},
-                {"type": "sub", "value": [
-                    {"type": "sub1", "value": "Sub1"},
-                    {"type": "sub2", "value": "Sub2"}
-                ]},
-                {"type": "sub", "value": [
-                    {"type": "sub1", "value": "Sub1'"},
-                    {"type": "sub2", "value": "Sub2'"}
-                ]}
-            ]
-        }]
-
-        out = self.compiler.sanitize_parsing_first_pass(input_values, input_type)
-        assert out == excepted_output
-
-    def test_sanitize_parsing_first_pass2(self):
-        input_type = "class"
-        input_values = [
-            [
-                {'type': 'keyword', 'value': 'class'},
-                {'type': 'identifier', 'value': 'Main'},
-                {'type': 'symbol', 'value': '{'},
-                {'type': 'classVarDec', 'value': [[
-                    {'type': 'keyword', 'value': [[{'type': 'keyword', 'value': 'static'}]]},
-                    {'type': 'type', 'value': [[
-                        {'type': 'keyword', 'value': [[{'type': 'keyword', 'value': 'boolean'}]]}
-                    ]]},
-                    {'type': 'varName', 'value': [[{'type': 'identifier', 'value': 'test'}]]},
-                    {'type': 'group', 'value': [[]]},
-                    {'type': 'symbol', 'value': ';'}
-                ], [[]]
-                ]},
-                {'type': 'subroutineDec',
-                 'value': [
-                     [{"type": "foo", "value": "bar1"}, {"type": "foo", "value": "bar2"}],
-                     [{"type": "foo", "value": "bar1'"}, {"type": "foo", "value": "bar2'"}]
-                 ]},
-                {'type': 'symbol', 'value': '}'}
-            ]
+    def test_match_token_term_Integer(self):
+        tokens = [
+            {"type": "integerConstant", "value": "42"}
         ]
+        tokens_type = "term"
 
-        excepted_output = [{
-            "type": input_type,
-            "value": [
-                {'type': 'keyword', 'value': 'class'},
-                {'type': 'identifier', 'value': 'Main'},
-                {'type': 'symbol', 'value': '{'},
-                {'type': 'classVarDec', 'value': [
-                    {'type': 'keyword', 'value': [{'type': 'keyword', 'value': 'static'}]},
-                    {'type': 'type', 'value': [
-                        {'type': 'keyword', 'value': [{'type': 'keyword', 'value': 'boolean'}]}
+        excepted_out = {
+            "is_match": True,
+            "multiple_tokens": False,
+            "forward_index": len(tokens),
+            "matched_tokens": {
+                "type": "term",
+                "value":  [{
+                    "type": "integerConstant",
+                    "value": "42"
+                }]
+            }
+        }
+
+        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+
+        assert out == excepted_out
+
+    def test_match_token_term_NegInteger(self):
+        tokens = [
+            {"type": "symbol", "value": "-"},
+            {"type": "integerConstant", "value": "42"}
+        ]
+        tokens_type = "term"
+
+        excepted_out = {
+            "is_match": True,
+            "multiple_tokens": False,
+            "forward_index": len(tokens),
+            "matched_tokens": {
+                "type": "term",
+                "value":  [
+                    {"type": "symbol", "value": "-"},
+                    {"type": "term", "value": [
+                        {"type": "integerConstant", "value": "42"}
+                    ]}
+                ]
+            }
+        }
+
+        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+
+        assert out == excepted_out
+
+    def test_match_token_term_varNameArray(self):
+        tokens = [
+            {"type": "identifier", "value": "myArray"},
+            {"type": "symbol", "value": "["},
+            {"type": "integerConstant", "value": "42"},
+            {"type": "symbol", "value": "]"}
+        ]
+        tokens_type = "term"
+
+        excepted_out = {
+            "is_match": True,
+            "multiple_tokens": False,
+            "forward_index": len(tokens),
+            "matched_tokens": {
+                "type": tokens_type,
+                "value": [
+                    {"type": "identifier", "value": "myArray"},
+                    {"type": "symbol", "value": "["},
+                    {"type": "expression", "value": [
+                        {"type": "term", "value": [
+                            {"type": "integerConstant", "value": "42"},
+                        ]},
                     ]},
-                    {'type': 'varName', 'value': [{'type': 'identifier', 'value': 'test'}]},
-                    {'type': 'symbol', 'value': ';'}
-                ]},
+                    {"type": "symbol", "value": "]"}
+                ]
+            }
+        }
 
-                {'type': 'subroutineDec',
-                 'value': [
-                     {"type": "foo", "value": "bar1"},
-                     {"type": "foo", "value": "bar2"},
-                 ]},
+        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
 
-                {'type': 'subroutineDec',
-                 'value': [
-                     {"type": "foo", "value": "bar1'"},
-                     {"type": "foo", "value": "bar2'"}
-                 ]},
+        assert out == excepted_out
 
-                {'type': 'symbol', 'value': '}'}
-            ]
-        }]
+    def test_match_token_term_sum(self):
+        tokens = [
+            {"type": "symbol", "value": "("},
+            {"type": "integerConstant", "value": "12"},
+            {"type": "symbol", "value": "+"},
+            {"type": "integerConstant", "value": "42"},
+            {"type": "symbol", "value": ")"},
+        ]
+        tokens_type = "term"
 
-        out = self.compiler.sanitize_parsing_first_pass(input_values, input_type)
-        assert out == excepted_output
+        excepted_out = {
+            "is_match": True,
+            "multiple_tokens": False,
+            "forward_index": len(tokens),
+            "matched_tokens": {
+                "type": tokens_type,
+                "value": [
+                    {"type": "symbol", "value": "("},
+                    {"type": "expression", "value": [
+                        {"type": "term", "value": [
+                            {"type": "integerConstant", "value": "12"},
+                        ]},
+                        {"type": "symbol", "value": "+"},
+                        {"type": "term", "value": [
+                            {"type": "integerConstant", "value": "42"},
+                        ]},
+                    ]},
+                    {"type": "symbol", "value": ")"},
+                ]
+            }
+        }
+
+        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+
+        assert out == excepted_out
+
+    def test_match_token_expression_three_terms(self):
+        tokens = [
+            {"type": "integerConstant", "value": "12"},
+            {"type": "symbol", "value": "+"},
+            {"type": "integerConstant", "value": "42"},
+            {"type": "symbol", "value": "/"},
+            {"type": "identifier", "value": "divider"},
+        ]
+        tokens_type = "expression"
+
+        excepted_out = {
+            "is_match": True,
+            "multiple_tokens": False,
+            "forward_index": len(tokens),
+            "matched_tokens": {
+                "type": tokens_type,
+                "value": [
+                    {"type": "term", "value": [
+                        {"type": "integerConstant", "value": "12"},
+                    ]},
+                    {"type": "symbol", "value": "+"},
+                    {"type": "term", "value": [
+                                {"type": "integerConstant", "value": "42"},
+                    ]},
+                    {"type": "symbol", "value": "/"},
+                    {"type": "term", "value": [
+                        {"type": "identifier", "value": "divider"},
+                    ]},
+                ]
+            }
+        }
+
+        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+
+        assert out == excepted_out
+
+    def test_match_token_expression_three_complex_terms(self):
+        tokens = [
+            {"type": "symbol", "value": "-"},
+            {"type": "integerConstant", "value": "12"},
+            {"type": "symbol", "value": "+"},
+
+            {"type": "identifier", "value": "myArray"},
+            {"type": "symbol", "value": "["},
+            {"type": "integerConstant", "value": "42"},
+            {"type": "symbol", "value": "]"},
+
+            {"type": "symbol", "value": "/"},
+            {"type": "identifier", "value": "divider"},
+        ]
+        tokens_type = "expression"
+
+        excepted_out = {
+            "is_match": True,
+            "multiple_tokens": False,
+            "forward_index": len(tokens),
+            "matched_tokens": {
+                "type": tokens_type,
+                "value": [
+                    {"type": "term", "value": [
+                        {"type": "symbol", "value": "-"},
+                        {"type": "term", "value": [
+                            {"type": "integerConstant", "value": "12"},
+                        ]},
+                    ]},
+                    {"type": "symbol", "value": "+"},
+                    {"type": "term", "value": [
+                        {"type": "identifier", "value": "myArray"},
+                        {"type": "symbol", "value": "["},
+                        {"type": "expression", "value": [
+                            {"type": "term", "value": [
+                                {"type": "integerConstant", "value": "42"},
+                            ]},
+                        ]},
+                        {"type": "symbol", "value": "]"},
+                    ]},
+                    {"type": "symbol", "value": "/"},
+                    {"type": "term", "value": [
+                        {"type": "identifier", "value": "divider"},
+                    ]},
+                ]
+            }
+        }
+
+        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+
+        assert out == excepted_out
+
+    def test_match_token_expression_list(self):
+        tokens = [
+            {"type": "symbol", "value": "-"},
+            {"type": "integerConstant", "value": "12"},
+            {"type": "symbol", "value": "+"},
+            {"type": "identifier", "value": "myArray"},
+            {"type": "symbol", "value": "["},
+            {"type": "integerConstant", "value": "42"},
+            {"type": "symbol", "value": "]"},
+            {"type": "symbol", "value": "/"},
+            {"type": "identifier", "value": "divider"},
+
+            {"type": "symbol", "value": ","},
+
+            {"type": "identifier", "value": "myVar"},
+            {"type": "symbol", "value": "="},
+            {"type": "integerConstant", "value": "1"},
+        ]
+        tokens_type = "expressionList"
+
+        excepted_out = {
+            "is_match": True,
+            "multiple_tokens": False,
+            "forward_index": len(tokens),
+            "matched_tokens": {
+                "type": tokens_type,
+                "value": [
+                    {"type": "expression", "value": [
+                        {"type": "term", "value": [
+                            {"type": "symbol", "value": "-"},
+                            {"type": "term", "value": [
+                                {"type": "integerConstant", "value": "12"},
+                            ]},
+                        ]},
+                        {"type": "symbol", "value": "+"},
+                        {"type": "term", "value": [
+                            {"type": "identifier", "value": "myArray"},
+                            {"type": "symbol", "value": "["},
+                            {"type": "expression", "value": [
+                                {"type": "term", "value": [
+                                    {"type": "integerConstant", "value": "42"},
+                                ]},
+                            ]},
+                            {"type": "symbol", "value": "]"},
+                        ]},
+                        {"type": "symbol", "value": "/"},
+                        {"type": "term", "value": [
+                            {"type": "identifier", "value": "divider"},
+                        ]},
+                    ]},
+                    {"type": "symbol", "value": ","},
+                    {"type": "expression", "value": [
+                        {"type": "term", "value": [
+                            {"type": "identifier", "value": "myVar"},
+                        ]},
+                        {"type": "symbol", "value": "="},
+                        {"type": "term", "value": [
+                            {"type": "integerConstant", "value": "1"},
+                        ]}
+                    ]}
+                ]
+            }
+        }
+
+        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+
+        assert out == excepted_out
+
+    def test_match_token_subroutineCall_function_no_arg(self):
+        tokens = [
+            {"type": "identifier", "value": "myFunc"},
+            {"type": "symbol", "value": "("},
+            {"type": "symbol", "value": ")"},
+        ]
+        tokens_type = "subroutineCall"
+
+        excepted_out = {
+            "is_match": True,
+            "multiple_tokens": False,
+            "forward_index": len(tokens),
+            "matched_tokens": {
+                "type": tokens_type,
+                "value": [
+                    {"type": "identifier", "value": "myFunc"},
+                    {"type": "symbol", "value": "("},
+                    {"type": "expressionList", "value": []},
+                    {"type": "symbol", "value": ")"},
+                ]
+            }
+        }
+
+        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+
+        assert out == excepted_out
+
+    def test_match_token_subroutineCall_method_no_arg(self):
+        tokens = [
+            {"type": "identifier", "value": "myClass"},
+            {"type": "symbol", "value": "."},
+            {"type": "identifier", "value": "myMethod"},
+            {"type": "symbol", "value": "("},
+            {"type": "symbol", "value": ")"},
+        ]
+        tokens_type = "subroutineCall"
+
+        excepted_out = {
+            "is_match": True,
+            "multiple_tokens": False,
+            "forward_index": len(tokens),
+            "matched_tokens": {
+                "type": tokens_type,
+                "value": [
+                    {"type": "identifier", "value": "myClass"},
+                    {"type": "symbol", "value": "."},
+                    {"type": "identifier", "value": "myMethod"},
+                    {"type": "symbol", "value": "("},
+                    {"type": "expressionList", "value": []},
+                    {"type": "symbol", "value": ")"},
+                ]
+            }
+        }
+
+        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+
+        assert out == excepted_out
+
+    def test_match_token_subroutineCall_function_one_arg(self):
+        tokens = [
+            {"type": "identifier", "value": "myFunc"},
+            {"type": "symbol", "value": "("},
+            {"type": "identifier", "value": "myArr"},
+            {"type": "symbol", "value": "["},
+            {"type": "integerConstant", "value": "42"},
+            {"type": "symbol", "value": "]"},
+            {"type": "symbol", "value": ")"},
+        ]
+        tokens_type = "subroutineCall"
+
+        excepted_out = {
+            "is_match": True,
+            "multiple_tokens": False,
+            "forward_index": len(tokens),
+            "matched_tokens": {
+                "type": tokens_type,
+                "value": [
+                    {"type": "identifier", "value": "myFunc"},
+                    {"type": "symbol", "value": "("},
+                    {"type": "expressionList", "value": [
+                        {"type": "expression", "value": [
+                            {"type": "term", "value": [
+                                {"type": "identifier", "value": "myArr"},
+                                {"type": "symbol", "value": "["},
+                                {"type": "expression", "value": [
+                                    {"type": "term", "value": [
+                                        {"type": "integerConstant", "value": "42"},
+                                    ]},
+                                ]},
+                                {"type": "symbol", "value": "]"},
+                            ]},
+                        ]},
+                    ]},
+                    {"type": "symbol", "value": ")"},
+                ]
+            }
+        }
+
+        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+
+        assert out == excepted_out
+
+    def test_match_token_subroutineCall_function_three_args(self):
+        tokens = [
+            {"type": "identifier", "value": "myFunc"},
+            {"type": "symbol", "value": "("},
+            {"type": "identifier", "value": "myArr"},
+            {"type": "symbol", "value": "["},
+            {"type": "integerConstant", "value": "42"},
+            {"type": "symbol", "value": "]"},
+            {"type": "symbol", "value": ","},
+            {"type": "identifier", "value": "myVar"},
+            {"type": "symbol", "value": ","},
+            {"type": "symbol", "value": "-"},
+            {"type": "identifier", "value": "myVar2"},
+            {"type": "symbol", "value": ")"},
+        ]
+        tokens_type = "subroutineCall"
+
+        excepted_out = {
+            "is_match": True,
+            "multiple_tokens": False,
+            "forward_index": len(tokens),
+            "matched_tokens": {
+                "type": tokens_type,
+                "value": [
+                    {"type": "identifier", "value": "myFunc"},
+                    {"type": "symbol", "value": "("},
+                    {"type": "expressionList", "value": [
+                        {"type": "expression", "value": [
+                            {"type": "term", "value": [
+                                {"type": "identifier", "value": "myArr"},
+                                {"type": "symbol", "value": "["},
+                                {"type": "expression", "value": [
+                                    {"type": "term", "value": [
+                                        {"type": "integerConstant", "value": "42"},
+                                    ]},
+                                ]},
+                                {"type": "symbol", "value": "]"},
+                            ]},
+                        ]},
+                        {"type": "symbol", "value": ","},
+                        {"type": "expression", "value": [
+                            {"type": "term", "value": [
+                                {"type": "identifier", "value": "myVar"},
+                            ]},
+                        ]},
+                        {"type": "symbol", "value": ","},
+                        {"type": "expression", "value": [
+                            {"type": "term", "value": [
+                                {"type": "symbol", "value": "-"},
+                                {"type": "term", "value": [
+                                    {"type": "identifier", "value": "myVar2"},
+                                ]},
+                            ]},
+                        ]},
+                    ]},
+                    {"type": "symbol", "value": ")"},
+                ]
+            }
+        }
+
+        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+
+        assert out == excepted_out
+
+    def test_match_token_letStatement(self):
+        tokens = [
+            {"type": "keyword", "value": "let"},
+            {"type": "identifier", "value": "myVar"},
+            {"type": "symbol", "value": "="},
+
+            {"type": "identifier", "value": "myArr"},
+            {"type": "symbol", "value": "["},
+            {"type": "integerConstant", "value": "42"},
+            {"type": "symbol", "value": "]"},
+            {"type": "symbol", "value": ";"},
+        ]
+        tokens_type = "letStatement"
+
+        excepted_out = {
+            "is_match": True,
+            "multiple_tokens": False,
+            "forward_index": len(tokens),
+            "matched_tokens": {
+                "type": tokens_type,
+                "value": [
+                    {"type": "keyword", "value": "let"},
+                    {"type": "identifier", "value": "myVar"},
+                    {"type": "symbol", "value": "="},
+
+                    {"type": "expression", "value": [
+                        {"type": "term", "value": [
+                            {"type": "identifier", "value": "myArr"},
+                            {"type": "symbol", "value": "["},
+                            {"type": "expression", "value": [
+                                {"type": "term", "value": [
+                                    {"type": "integerConstant", "value": "42"},
+                                ]},
+                            ]},
+                            {"type": "symbol", "value": "]"},
+                        ]},
+                    ]},
+                    {"type": "symbol", "value": ";"},
+                ]
+            }
+        }
+
+        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+
+        assert out == excepted_out
+
+    def test_match_token_letStatement_array(self):
+        tokens = [
+            {"type": "keyword", "value": "let"},
+            {"type": "identifier", "value": "myArr"},
+            {"type": "symbol", "value": "["},
+            {"type": "identifier", "value": "idx"},
+            {"type": "symbol", "value": "]"},
+            {"type": "symbol", "value": "="},
+            {"type": "integerConstant", "value": "42"},
+            {"type": "symbol", "value": ";"},
+        ]
+        tokens_type = "letStatement"
+
+        excepted_out = {
+            "is_match": True,
+            "multiple_tokens": False,
+            "forward_index": len(tokens),
+            "matched_tokens": {
+                "type": tokens_type,
+                "value": [
+                    {"type": "keyword", "value": "let"},
+                    {"type": "identifier", "value": "myArr"},
+                    {"type": "symbol", "value": "["},
+                    {"type": "expression", "value": [
+                        {"type": "term", "value": [
+                            {"type": "identifier", "value": "idx"},
+                        ]},
+                    ]},
+                    {"type": "symbol", "value": "]"},
+                    {"type": "symbol", "value": "="},
+                    {"type": "expression", "value": [
+                        {"type": "term", "value": [
+                            {"type": "integerConstant", "value": "42"},
+                        ]},
+                    ]},
+                    {"type": "symbol", "value": ";"},
+                ]
+            }
+        }
+
+        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+
+        assert out == excepted_out
+
+    def test_match_token_ifStatement(self):
+        tokens = [
+            {"type": "keyword", "value": "if"},
+            {"type": "symbol", "value": "("},
+            {"type": "keyword", "value": "true"},
+            {"type": "symbol", "value": ")"},
+            {"type": "symbol", "value": "{"},
+
+            {"type": "keyword", "value": "let"},
+            {"type": "identifier", "value": "myVar"},
+            {"type": "symbol", "value": "="},
+            {"type": "integerConstant", "value": "42"},
+            {"type": "symbol", "value": ";"},
+
+            {"type": "symbol", "value": "}"},
+        ]
+        tokens_type = "ifStatement"
+
+        excepted_out = {
+            "is_match": True,
+            "multiple_tokens": False,
+            "forward_index": len(tokens),
+            "matched_tokens": {
+                "type": tokens_type,
+                "value": [
+                    {"type": "keyword", "value": "if"},
+                    {"type": "symbol", "value": "("},
+                    {"type": "expression", "value": [
+                        {"type": "term", "value": [
+                            {"type": "keyword", "value": "true"},
+                        ]},
+                    ]},
+                    {"type": "symbol", "value": ")"},
+                    {"type": "symbol", "value": "{"},
+
+                    {"type": "statements", "value": [
+                        {"type": "letStatement", "value": [
+                            {"type": "keyword", "value": "let"},
+                            {"type": "identifier", "value": "myVar"},
+                            {"type": "symbol", "value": "="},
+                            {"type": "expression", "value": [
+                                {"type": "term", "value": [
+                                    {"type": "integerConstant", "value": "42"},
+                                ]},
+                            ]},
+                            {"type": "symbol", "value": ";"},
+                        ]},
+                    ]},
+                    {"type": "symbol", "value": "}"},
+                ]
+            }
+        }
+
+        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+
+        assert out == excepted_out
+
+    def test_match_token_doStatement(self):
+        tokens = [
+            {"type": "keyword", "value": "do"},
+            {"type": "identifier", "value": "myFunc"},
+            {"type": "symbol", "value": "("},
+            {"type": "symbol", "value": ")"},
+            {"type": "symbol", "value": ";"},
+        ]
+        tokens_type = "doStatement"
+
+        excepted_out = {
+            "is_match": True,
+            "multiple_tokens": False,
+            "forward_index": len(tokens),
+            "matched_tokens": {
+                "type": tokens_type,
+                "value": [
+                    {"type": "keyword", "value": "do"},
+                    {"type": "identifier", "value": "myFunc"},
+                    {"type": "symbol", "value": "("},
+                    {"type": "expressionList", "value": []},
+                    {"type": "symbol", "value": ")"},
+                    {"type": "symbol", "value": ";"},
+                ]
+            }
+        }
+
+        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+
+        assert out == excepted_out
+
+    def test_match_token_returnStatement(self):
+        tokens = [
+            {"type": "keyword", "value": "return"},
+            {"type": "identifier", "value": "myVar"},
+            {"type": "symbol", "value": ";"},
+        ]
+        tokens_type = "returnStatement"
+
+        excepted_out = {
+            "is_match": True,
+            "multiple_tokens": False,
+            "forward_index": len(tokens),
+            "matched_tokens": {
+                "type": tokens_type,
+                "value": [
+                    {"type": "keyword", "value": "return"},
+                    {"type": "expression", "value": [
+                        {"type": "term", "value": [
+                            {"type": "identifier", "value": "myVar"},
+                        ]},
+                    ]},
+                    {"type": "symbol", "value": ";"},
+                ]
+            }
+        }
+
+        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+
+        assert out == excepted_out
+
+    def test_match_token_returnStatement_no_return(self):
+        tokens = [
+            {"type": "keyword", "value": "return"},
+            {"type": "symbol", "value": ";"},
+        ]
+        tokens_type = "returnStatement"
+
+        excepted_out = {
+            "is_match": True,
+            "multiple_tokens": False,
+            "forward_index": len(tokens),
+            "matched_tokens": {
+                "type": tokens_type,
+                "value": [
+                    {"type": "keyword", "value": "return"},
+                    {"type": "symbol", "value": ";"},
+                ]
+            }
+        }
+
+        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+
+        assert out == excepted_out
+
+    def test_match_token_statement(self):
+        tokens = [
+            {"type": "keyword", "value": "do"},
+            {"type": "identifier", "value": "myFunc"},
+            {"type": "symbol", "value": "("},
+            {"type": "symbol", "value": ")"},
+            {"type": "symbol", "value": ";"},
+        ]
+        tokens_type = "statement"
+
+        excepted_out = {
+            "is_match": True,
+            "multiple_tokens": False,
+            "forward_index": len(tokens),
+            "matched_tokens": {
+                "type": tokens_type,
+                "value": [
+                    {"type": "doStatement", "value": [
+                        {"type": "keyword", "value": "do"},
+                        {"type": "identifier", "value": "myFunc"},
+                        {"type": "symbol", "value": "("},
+                        {"type": "expressionList", "value": []},
+                        {"type": "symbol", "value": ")"},
+                        {"type": "symbol", "value": ";"},
+                    ]},
+                ]
+            }
+        }
+
+        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+
+        assert out == excepted_out
+
+    def test_match_token_statements_single_statement(self):
+        tokens = [
+            {"type": "keyword", "value": "do"},
+            {"type": "identifier", "value": "myFunc"},
+            {"type": "symbol", "value": "("},
+            {"type": "symbol", "value": ")"},
+            {"type": "symbol", "value": ";"},
+        ]
+        tokens_type = "statements"
+
+        excepted_out = {
+            "is_match": True,
+            "multiple_tokens": False,
+            "forward_index": len(tokens),
+            "matched_tokens": {
+                "type": tokens_type,
+                "value": [
+                    {"type": "doStatement", "value": [
+                        {"type": "keyword", "value": "do"},
+                        {"type": "identifier", "value": "myFunc"},
+                        {"type": "symbol", "value": "("},
+                        {"type": "expressionList", "value": []},
+                        {"type": "symbol", "value": ")"},
+                        {"type": "symbol", "value": ";"},
+                    ]},
+                ]
+            }
+        }
+
+        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+
+        assert out == excepted_out
+
+    def test_match_token_varDec(self):
+        tokens = [
+            {"type": "keyword", "value": "var"},
+            {"type": "identifier", "value": "myClass"},
+            {"type": "identifier", "value": "myVar"},
+            {"type": "symbol", "value": ";"},
+        ]
+        tokens_type = "varDec"
+
+        excepted_out = {
+            "is_match": True,
+            "multiple_tokens": False,
+            "forward_index": len(tokens),
+            "matched_tokens": {
+                "type": tokens_type,
+                "value": tokens
+            }
+        }
+
+        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+
+        assert out == excepted_out
+
+    def test_match_token_varDec_double(self):
+        tokens = [
+            {"type": "keyword", "value": "var"},
+            {"type": "identifier", "value": "myClass"},
+            {"type": "identifier", "value": "myVar"},
+            {"type": "symbol", "value": ","},
+            {"type": "identifier", "value": "myVar2"},
+            {"type": "symbol", "value": ";"},
+        ]
+        tokens_type = "varDec"
+
+        excepted_out = {
+            "is_match": True,
+            "multiple_tokens": False,
+            "forward_index": len(tokens),
+            "matched_tokens": {
+                "type": tokens_type,
+                "value": tokens
+            }
+        }
+
+        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+
+        assert out == excepted_out
+
+    def test_match_token_subroutineBody(self):
+        tokens = [
+            {"type": "symbol", "value": "{"},
+            {"type": "keyword", "value": "var"},
+            {"type": "identifier", "value": "myClass"},
+            {"type": "identifier", "value": "myVar"},
+            {"type": "symbol", "value": ";"},
+
+            {"type": "keyword", "value": "var"},
+            {"type": "identifier", "value": "int"},
+            {"type": "identifier", "value": "myVar2"},
+            {"type": "symbol", "value": ";"},
+
+            {"type": "keyword", "value": "return"},
+            {"type": "symbol", "value": ";"},
+
+            {"type": "symbol", "value": "}"},
+        ]
+        tokens_type = "subroutineBody"
+
+        excepted_out = {
+            "is_match": True,
+            "multiple_tokens": False,
+            "forward_index": len(tokens),
+            "matched_tokens": {
+                "type": tokens_type,
+                "value": [
+                    {"type": "symbol", "value": "{"},
+                    {"type": "varDec", "value": [
+                        {"type": "keyword", "value": "var"},
+                        {"type": "identifier", "value": "myClass"},
+                        {"type": "identifier", "value": "myVar"},
+                        {"type": "symbol", "value": ";"},
+                    ]},
+
+                    {"type": "varDec", "value": [
+                        {"type": "keyword", "value": "var"},
+                        {"type": "identifier", "value": "int"},
+                        {"type": "identifier", "value": "myVar2"},
+                        {"type": "symbol", "value": ";"},
+                    ]},
+
+                    {"type": "statements", "value": [
+                        {"type": "returnStatement", "value": [
+                            {"type": "keyword", "value": "return"},
+                            {"type": "symbol", "value": ";"},
+                        ]},
+                    ]},
+
+                    {"type": "symbol", "value": "}"},
+                ]
+            }
+        }
+
+        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+
+        assert out == excepted_out
+
+    def test_match_token_subroutineBody_triple_varDec(self):
+        tokens = [
+            {"type": "symbol", "value": "{"},
+            {"type": "keyword", "value": "var"},
+            {"type": "keyword", "value": "int"},
+            {"type": "identifier", "value": "i"},
+            {"type": "symbol", "value": ","},
+            {"type": "identifier", "value": "j"},
+            {"type": "symbol", "value": ";"},
+
+            {"type": "keyword", "value": "var"},
+            {"type": "identifier", "value": "String"},
+            {"type": "identifier", "value": "s"},
+            {"type": "symbol", "value": ";"},
+
+            {"type": "keyword", "value": "var"},
+            {"type": "identifier", "value": "Array"},
+            {"type": "identifier", "value": "a"},
+            {"type": "symbol", "value": ";"},
+
+            {"type": "keyword", "value": "return"},
+            {"type": "symbol", "value": ";"},
+
+            {"type": "symbol", "value": "}"},
+        ]
+        tokens_type = "subroutineBody"
+
+        excepted_out = {
+            "is_match": True,
+            "multiple_tokens": False,
+            "forward_index": len(tokens),
+            "matched_tokens": {
+                "type": tokens_type,
+                "value": [
+                    {"type": "symbol", "value": "{"},
+                    {"type": "varDec", "value": [
+                        {"type": "keyword", "value": "var"},
+                        {"type": "keyword", "value": "int"},
+                        {"type": "identifier", "value": "i"},
+                        {"type": "symbol", "value": ","},
+                        {"type": "identifier", "value": "j"},
+                        {"type": "symbol", "value": ";"},
+                    ]},
+
+                    {"type": "varDec", "value": [
+                        {"type": "keyword", "value": "var"},
+                        {"type": "identifier", "value": "String"},
+                        {"type": "identifier", "value": "s"},
+                        {"type": "symbol", "value": ";"},
+                    ]},
+
+                    {"type": "varDec", "value": [
+                        {"type": "keyword", "value": "var"},
+                        {"type": "identifier", "value": "Array"},
+                        {"type": "identifier", "value": "a"},
+                        {"type": "symbol", "value": ";"},
+                    ]},
+
+                    {"type": "statements", "value": [
+                        {"type": "returnStatement", "value": [
+                            {"type": "keyword", "value": "return"},
+                            {"type": "symbol", "value": ";"},
+                        ]},
+                    ]},
+
+                    {"type": "symbol", "value": "}"},
+                ]
+            }
+        }
+
+        out = self.compiler.match_token(self.compiler.jack_syntax[tokens_type], tokens, current_object_name=tokens_type)
+
+        assert out == excepted_out
