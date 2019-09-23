@@ -4,8 +4,9 @@ class JackCompiler:
 
     symbol_table_class = {}
     symbol_table_methods = {}
-    # FIXME: more beautiful labels
-    label_counter = 0
+
+    while_label_counter = 0
+    if_label_counter = 0
 
     def find_token(self, ast, name):
         return [token for token in ast["value"] if token["type"] == name]
@@ -31,17 +32,21 @@ class JackCompiler:
                 current_method_name = token["value"][2]["value"]
                 current_method = self.symbol_table_methods[current_method_name]
 
-                self.vm.append("function {}.{} {}".format(self.className, current_method_name,
-                                                          len(current_method["parameters"])))
+                parameter_list = self.find_token(token, "parameterList")[0]
+                subroutine_body = self.find_token(token, "subroutineBody")[0]
+                var_decs = self.find_token(subroutine_body, "varDec")
+
+                local_args_count = 0
+                for var_dec in var_decs:
+                    local_args_count += int((len(var_dec["value"])-2) / 2)
+
+                self.vm.append("function {}.{} {}".format(self.className, current_method_name, local_args_count))
                 if current_method["type"] == "method":
                     self.vm.append("push argument 0")
                     self.vm.append("pop pointer 0")
 
-                parameter_list = self.find_token(token, "parameterList")[0]
                 self.record_var(parameter_list, "argument", symbol_table_method)
 
-                subroutine_body = self.find_token(token, "subroutineBody")[0]
-                var_decs = self.find_token(subroutine_body, "varDec")
                 for var in var_decs:
                     self.record_var({"type": var["type"],
                                      "value": [value for i, value in enumerate(var["value"]) if i > 0]},
@@ -99,43 +104,51 @@ class JackCompiler:
             self.vm.append("pop {} {}".format(var["segment"], var["pos"]))
 
         elif statement["type"] == "ifStatement":
-            label_end = self.label_counter
-            self.label_counter += 1
-            label_false = None
+            label_true = "IF_TRUE{}".format(self.if_label_counter)
+            label_false = "IF_FALSE{}".format(self.if_label_counter)
+            label_end = "IF_END{}".format(self.if_label_counter)
+            self.if_label_counter += 1
 
-            is_else = False
-            if len(statement["value"]) == 11:
-                label_false = self.label_counter
-                self.label_counter += 1
-                is_else = True
+            is_else = len(statement["value"]) == 11
 
-            #   code for computing ~cond
+            #   code for computing cond
             self.compile_expression(statement["value"][2]["value"], symbol_table)
-            self.compile_op("~", unary_op=True)
 
-            #   if-goto L1
-            self.vm.append("if-goto {}".format(label_false if is_else else label_end))
+            #   if-goto true
+            self.vm.append("if-goto {}".format(label_true))
+            self.vm.append("goto {}".format(label_false))
 
+            self.vm.append("label {}".format(label_true))
             #   code for executing s1
             for sub_statement in statement["value"][5]["value"]:
                 self.compile_statement(sub_statement, symbol_table)
             #   goto L2
             self.vm.append("goto {}".format(label_end))
 
+            # label L1
+            self.vm.append("label {}".format(label_false))
+
             if is_else:
-                # label L1
-                self.vm.append("label {}".format(label_false))
                 #   code for executing s2
                 for sub_statement in statement["value"][9]["value"]:
                     self.compile_statement(sub_statement, symbol_table)
-                # label L2
-                self.vm.append("label {}".format(label_end))
+
+            # label L2
+            self.vm.append("label {}".format(label_end))
+
+
 
         elif statement["type"] == "whileStatement":
-            label_begin = self.label_counter
-            self.label_counter += 1
-            label_end = self.label_counter
-            self.label_counter += 1
+            label_begin = "WHILE_EXP{}".format(self.while_label_counter)
+            label_end = "WHILE_END{}".format(self.while_label_counter)
+            self.while_label_counter += 1
+
+            # label L1
+            self.vm.append("label {}".format(label_begin))
+
+            #   code for computing ~cond
+            self.compile_expression(statement["value"][2]["value"], symbol_table)
+            self.compile_op("~", unary_op=True)
 
             #   if-goto L2
             self.vm.append("if-goto {}".format(label_end))
@@ -147,24 +160,19 @@ class JackCompiler:
             #   goto L1
             self.vm.append("goto {}".format(label_begin))
 
-            # label L1
-            self.vm.append("label {}".format(label_begin))
-
-            #   code for computing ~cond
-            self.compile_expression(statement["value"][2]["value"], symbol_table)
-            self.compile_op("~", unary_op=True)
-
             # label L2
             self.vm.append("label {}".format(label_end))
 
         elif statement["type"] == "doStatement":
-            self.compile_subroutine_call(statement["value"][1:-1], symbol_table)
+            self.compile_subroutine_call(statement["value"][1]["value"], symbol_table)
 
         elif statement["type"] == "returnStatement":
             if len(statement["value"]) == 2:
                 self.vm.append("push constant 0")
                 self.vm.append("return")
-
+            elif len(statement["value"]) == 3:
+                self.compile_expression(statement["value"][1]["value"], symbol_table)
+                self.vm.append("return")
         else:
             raise ValueError("Unknown statement {}".format(statement["type"]))
 
@@ -223,7 +231,7 @@ class JackCompiler:
                     self.vm.append("push constant 0")
                 elif terms[0]["value"] == "true":
                     self.vm.append("push constant 0")
-                    self.vm.append("neg")
+                    self.vm.append("not")
                 else:
                     NotImplementedError("Not implemented keyword {}".format(terms[0]["value"]))
             elif terms[0]["type"] == "identifier":
@@ -237,6 +245,10 @@ class JackCompiler:
                 else:
                     raise ValueError("Unknown identifier {}".format(identifier))
 
+            elif terms[0]["type"] == "subroutineCall":
+                # subroutineCall (with class.method)
+                self.compile_subroutine_call(terms[0]["value"], symbol_table)
+
             else:
                 raise ValueError("Unknown term type {}".format(terms[0]["type"]))
 
@@ -247,9 +259,6 @@ class JackCompiler:
         elif len(terms) == 3:
             # '(' expression ')'
             self.compile_expression(terms[1]["value"], symbol_table)
-        elif len(terms) == 6:
-            # subroutineCall (with class.method)
-            self.compile_subroutine_call(terms, symbol_table)
         else:
             raise ValueError("Unknown term length {}".format(len(terms)))
 
