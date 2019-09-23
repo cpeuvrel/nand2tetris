@@ -738,10 +738,12 @@ class TestJackTokenizer:
                 "type": tokens_type,
                 "value": [
                     {"type": "keyword", "value": "do"},
-                    {"type": "identifier", "value": "myFunc"},
-                    {"type": "symbol", "value": "("},
-                    {"type": "expressionList", "value": []},
-                    {"type": "symbol", "value": ")"},
+                    {"type": "subroutineCall", "value": [
+                        {"type": "identifier", "value": "myFunc"},
+                        {"type": "symbol", "value": "("},
+                        {"type": "expressionList", "value": []},
+                        {"type": "symbol", "value": ")"},
+                    ]},
                     {"type": "symbol", "value": ";"},
                 ]
             }
@@ -824,10 +826,12 @@ class TestJackTokenizer:
                 "value": [
                     {"type": "doStatement", "value": [
                         {"type": "keyword", "value": "do"},
-                        {"type": "identifier", "value": "myFunc"},
-                        {"type": "symbol", "value": "("},
-                        {"type": "expressionList", "value": []},
-                        {"type": "symbol", "value": ")"},
+                        {"type": "subroutineCall", "value": [
+                            {"type": "identifier", "value": "myFunc"},
+                            {"type": "symbol", "value": "("},
+                            {"type": "expressionList", "value": []},
+                            {"type": "symbol", "value": ")"},
+                        ]},
                         {"type": "symbol", "value": ";"},
                     ]},
                 ]
@@ -857,10 +861,12 @@ class TestJackTokenizer:
                 "value": [
                     {"type": "doStatement", "value": [
                         {"type": "keyword", "value": "do"},
-                        {"type": "identifier", "value": "myFunc"},
-                        {"type": "symbol", "value": "("},
-                        {"type": "expressionList", "value": []},
-                        {"type": "symbol", "value": ")"},
+                        {"type": "subroutineCall", "value": [
+                            {"type": "identifier", "value": "myFunc"},
+                            {"type": "symbol", "value": "("},
+                            {"type": "expressionList", "value": []},
+                            {"type": "symbol", "value": ")"},
+                        ]},
                         {"type": "symbol", "value": ";"},
                     ]},
                 ]

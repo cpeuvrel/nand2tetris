@@ -528,7 +528,7 @@ class JackTokenizer:
             i = 0
 
         # Don't add these token in AST
-        ignored_tokens = ["statement", "subroutineCall"]
+        ignored_tokens = ["statement"]
         for token_idx, token in enumerate(matched_tokens):
             if token["type"] in ignored_tokens:
                 if len(matched_tokens) == 1:
@@ -595,6 +595,10 @@ class JackTokenizer:
 
         if type(ast_value) != list:
             self.parsed_xml.append("{}<{}> {} </{}>".format(indent_spaces, ast_type, escape(ast_value), ast_type))
+
+        elif ast_type == "subroutineCall":
+            for token in ast_value:
+                self.ast2xml(token, indent_level)
 
         else:
             self.parsed_xml.append("{}<{}>".format(indent_spaces, ast_type))
