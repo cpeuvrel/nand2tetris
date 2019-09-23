@@ -58,4 +58,4 @@ if __name__ == "__main__":
         print("Must give a jack file path or a directory containing jack files as arg")
         sys.exit(1)
 
-    Compiler(sys.argv[1]).main(sys.argv[2:])
+    Compiler(sys.argv[-1]).main(sys.argv[:-1])
