@@ -26,7 +26,14 @@ class JackCompiler:
                                                          "parameters": current_method_params}
 
         for token in ast["value"]:
-            if token["type"] == "subroutineDec":
+            if token["type"] == "classVarDec":
+                self.record_var({"type": token["value"][1]["value"],
+                                 "value": [value for i, value in enumerate(token["value"]) if i > 0]},
+                                "this",
+                                self.symbol_table_class,
+                                common_type=True)
+
+            elif token["type"] == "subroutineDec":
                 symbol_table_method = {}
 
                 current_method_name = token["value"][2]["value"]
@@ -91,17 +98,31 @@ class JackCompiler:
     def compile_statement(self, statement, symbol_table):
         if statement["type"] == "letStatement":
             varname = statement["value"][1]["value"]
-
-            if statement["value"][2]["value"] == "[":
-                raise ValueError("Array letStatement aren't supported yet")
+            is_array = False
 
             if varname not in symbol_table and varname not in self.symbol_table_class:
                 raise KeyError("Unkwnown variable '{}'".format(varname))
-            var = symbol_table[varname]
+            var = symbol_table[varname] if varname in symbol_table else self.symbol_table_class[varname]
+
+            if statement["value"][2]["value"] == "[":
+                segment = "pointer"
+                pos = 1
+                is_array = True
+
+                self.compile_expression(statement["value"][3]["value"], symbol_table)
+                self.vm.append("push {} {}".format(var["segment"], var["pos"]))
+                self.vm.append("add")
+            else:
+                segment = var["segment"]
+                pos = var["pos"]
+
 
             self.compile_expression(statement["value"][-2]["value"], symbol_table)
 
-            self.vm.append("pop {} {}".format(var["segment"], var["pos"]))
+            self.vm.append("pop {} {}".format(segment, pos))
+            if is_array:
+                self.vm.append("push temp 0")
+                self.vm.append("pop that 0")
 
         elif statement["type"] == "ifStatement":
             label_true = "IF_TRUE{}".format(self.if_label_counter)
@@ -239,15 +260,22 @@ class JackCompiler:
                 identifier = terms[0]["value"]
                 if identifier in symbol_table:
                     var = symbol_table[identifier]
-                    self.vm.append("push {} {}".format(var["segment"], var["pos"]))
                 elif identifier in self.symbol_table_class:
-                    raise NotImplementedError("Not implemented class variable lookup")
+                    var = self.symbol_table_class[identifier]
                 else:
                     raise ValueError("Unknown identifier {}".format(identifier))
+                self.vm.append("push {} {}".format(var["segment"], var["pos"]))
 
             elif terms[0]["type"] == "subroutineCall":
                 # subroutineCall (with class.method)
                 self.compile_subroutine_call(terms[0]["value"], symbol_table)
+
+            elif terms[0]["type"] == "stringConstant":
+                self.vm.append("push constant {}".format(len(terms[0]["value"])))
+                self.vm.append("call String.new 1")
+                for c in terms[0]["value"]:
+                    self.vm.append("push constant {}".format(ord(c)))
+                    self.vm.append("call String.appendChar 2")
 
             else:
                 raise ValueError("Unknown term type {}".format(terms[0]["type"]))
@@ -259,6 +287,20 @@ class JackCompiler:
         elif len(terms) == 3:
             # '(' expression ')'
             self.compile_expression(terms[1]["value"], symbol_table)
+        elif len(terms) == 4:
+            #  identifier '[' expression ']'
+            varname = terms[0]["value"]
+            if varname not in symbol_table and varname not in self.symbol_table_class:
+                raise KeyError("Unkwnown variable '{}'".format(varname))
+            var = symbol_table[varname] if varname in symbol_table else self.symbol_table_class[varname]
+
+            self.compile_expression(terms[2]["value"], symbol_table)
+
+            self.vm.append("push {} {}".format(var["segment"], var["pos"]))
+            self.vm.append("add")
+            self.vm.append("pop pointer 1")
+            self.vm.append("push that 0")
+
         else:
             raise ValueError("Unknown term length {}".format(len(terms)))
 
@@ -268,6 +310,8 @@ class JackCompiler:
             self.vm.append("add")
         elif op == "*":
             self.vm.append("call Math.multiply 2")
+        elif op == "/":
+            self.vm.append("call Math.divide 2")
         elif op == "-":
             if unary_op:
                 self.vm.append("neg")
